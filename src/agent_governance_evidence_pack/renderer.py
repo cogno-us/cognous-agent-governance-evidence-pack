@@ -93,6 +93,14 @@ def render_markdown(pack: EvidencePack) -> str:
     else:
         exec_lines.append("No open risks recorded.")
 
+    if (
+        pack.review_status.value == "approved_with_conditions"
+        and any(record.notes and record.notes.strip() for record in pack.review_records)
+    ):
+        exec_lines.append(
+            "This evidence pack is approved with conditions; see Section 14 for review notes."
+        )
+
     parts.append("\n".join(exec_lines))
     parts.append("")
 

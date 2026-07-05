@@ -99,3 +99,7 @@ class TestRenderCommand:
         out = tmp_path / "output.md"
         result = _run_agep_cmd("render", "/tmp/nonexistent.json", "--out", str(out))
         assert result.returncode == 2
+
+    def test_render_unknown_flag_returns_2(self):
+        result = _run_agep_cmd("render", str(VALID_EXAMPLE), "--bogus")
+        assert result.returncode == 2

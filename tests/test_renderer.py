@@ -222,3 +222,23 @@ class TestContentRendering:
         assert "Alice" in result
         assert "CISO" in result
         assert "approved" in result
+
+    def test_approved_with_conditions_exec_summary_points_to_review_notes(self):
+        records = [
+            ReviewRecord(
+                reviewer="Alice",
+                reviewed_at="2026-01-02T00:00:00Z",
+                decision=ReviewStatus.approved_with_conditions,
+                notes="Requires monthly audit review.",
+            )
+        ]
+        pack = _minimal_pack(
+            review_status=ReviewStatus.approved_with_conditions,
+            review_records=records,
+        )
+        result = render_markdown(pack)
+        assert (
+            "This evidence pack is approved with conditions; see Section 14 for review notes."
+            in result
+        )
+        assert "Requires monthly audit review." in result
