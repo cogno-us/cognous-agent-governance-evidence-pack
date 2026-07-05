@@ -21,6 +21,7 @@ The agent has access to **4** tool(s) and can propose **4** action(s), of which 
 Validation summary: 1 valid bundle(s), 0 invalid, 0 error(s), 0 warning(s).
 
 **1** open risk(s) (0 critical).
+This evidence pack is approved with conditions; see Section 14 for review notes.
 
 ## 2. Agent Overview
 
