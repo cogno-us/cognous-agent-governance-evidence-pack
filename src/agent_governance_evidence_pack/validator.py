@@ -38,7 +38,9 @@ def _warning(code: str, message: str, path: str | None = None) -> ValidationIssu
 
 _PRIVILEGED_TYPES = {
     ActionType.external_send,
+    ActionType.write,
     ActionType.delete,
+    ActionType.export,
     ActionType.purchase,
     ActionType.approve,
 }

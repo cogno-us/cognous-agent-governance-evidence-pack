@@ -91,7 +91,16 @@ def cmd_render(args: list[str]) -> int:
             out_path = args[i + 1]
             i += 2
         else:
-            i += 1
+            value = args[i]
+            if value.startswith("-"):
+                print(f"Unknown flag: {value}", file=sys.stderr)
+            else:
+                print(f"Unexpected argument: {value}", file=sys.stderr)
+            print(
+                "Usage: agep render <path/to/evidence_pack.json> [--out <output.md>]",
+                file=sys.stderr,
+            )
+            return 2
 
     pack = _load_pack(path_str)
 

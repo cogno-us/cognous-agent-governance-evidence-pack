@@ -7,6 +7,7 @@ name = "agent-governance-evidence-pack"
 version = "0.1.0"
 description = "A lightweight evidence-pack format for summarizing AI-agent runtime governance records for business-facing review."
 readme = "README.md"
+authors = [{ name = "Cognous", email = "andredelima@cogno.us" }]
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 dependencies = [

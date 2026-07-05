@@ -318,6 +318,36 @@ class TestWarningRules:
         report = validate_evidence_pack(pack)
         assert "W018" in _warning_codes(report)
 
+    @pytest.mark.parametrize("action_type", [ActionType.write, ActionType.export])
+    def test_write_and_export_without_review_warning(self, action_type):
+        tools = [ToolInventoryItem(tool_name="tool_a")]
+        actions = [
+            ActionInventoryItem(
+                action_name="act_a",
+                tool_name="tool_a",
+                action_type=action_type,
+                review_required=False,
+            )
+        ]
+        pack = _make_pack(tool_inventory=tools, action_inventory=actions)
+        report = validate_evidence_pack(pack)
+        assert "W018" in _warning_codes(report)
+
+    @pytest.mark.parametrize("action_type", [ActionType.write, ActionType.export])
+    def test_write_and_export_without_authority_warning(self, action_type):
+        tools = [ToolInventoryItem(tool_name="tool_a")]
+        actions = [
+            ActionInventoryItem(
+                action_name="act_a",
+                tool_name="tool_a",
+                action_type=action_type,
+                authority_required=False,
+            )
+        ]
+        pack = _make_pack(tool_inventory=tools, action_inventory=actions)
+        report = validate_evidence_pack(pack)
+        assert "W019" in _warning_codes(report)
+
     def test_empty_pack_has_many_warnings(self):
         pack = _make_pack()
         report = validate_evidence_pack(pack)
