@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/risk_register_item.schema.json",
+  "title": "RiskRegisterItem",
+  "description": "A known risk associated with an agent deployment.",
+  "type": "object",
+  "required": ["risk_id", "title", "description", "severity"],
+  "additionalProperties": false,
+  "properties": {
+    "risk_id": {
+      "type": "string",
+      "description": "A unique identifier for this risk."
+    },
+    "title": {
+      "type": "string",
+      "description": "A short title for this risk."
+    },
+    "description": {
+      "type": "string",
+      "description": "A description of the risk and its potential impact."
+    },
+    "severity": {
+      "type": "string",
+      "description": "The severity of this risk.",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "status": {
+      "type": "string",
+      "description": "The current status of this risk.",
+      "enum": ["open", "mitigated", "accepted", "transferred", "closed"],
+      "default": "open"
+    },
+    "mitigation": {
+      "type": ["string", "null"],
+      "description": "Description of the mitigation applied or planned for this risk."
+    },
+    "owner": {
+      "type": ["string", "null"],
+      "description": "The person or team responsible for managing this risk."
+    },
+    "evidence_reference": {
+      "type": ["string", "null"],
+      "description": "A reference to evidence records related to this risk."
+    }
+  }
+}

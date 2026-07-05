@@ -1,0 +1,167 @@
+{
+  "pack_id": "ep-research-agent-2026-001",
+  "pack_version": "0.1",
+  "title": "Internal Research Assistant — Governance Evidence Pack",
+  "generated_at": "2026-07-01T10:00:00Z",
+  "review_status": "draft",
+  "agent_overview": {
+    "agent_name": "InternalResearchAssistant",
+    "agent_description": "Searches internal documents and file repositories, summarizes content, and prepares research summaries for business teams.",
+    "business_purpose": "Improve internal research productivity by searching and summarizing internal documents, files, and knowledge repositories on behalf of business analysts.",
+    "owner": "Head of Business Intelligence",
+    "business_unit": "Strategy and Analytics",
+    "user_population": "Business analysts and strategy team members",
+    "lifecycle_stage": "pilot"
+  },
+  "deployment_context": {
+    "environment": "development",
+    "deployment_name": "research-agent-dev-v1",
+    "deployment_date": "2026-06-01",
+    "systems_touched": ["Internal Document Repository", "File Search Service", "Knowledge Base"],
+    "data_domains": ["internal-documents", "strategy-materials", "research-files"],
+    "geographic_scope": "Global",
+    "notes": "Development deployment. Not yet approved for production use."
+  },
+  "tool_inventory": [
+    {
+      "tool_name": "document_search",
+      "description": "Search the internal document repository by keyword and metadata.",
+      "external_system": null,
+      "data_classification": "internal",
+      "access_mode": "read-only",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "file_read",
+      "description": "Read the contents of individual files from the internal file system.",
+      "external_system": null,
+      "data_classification": "internal",
+      "access_mode": "read-only",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "export_summary",
+      "description": "Export a research summary document to a shared drive or external destination.",
+      "external_system": "Shared Drive",
+      "data_classification": "internal",
+      "access_mode": "write",
+      "control_status": "partial"
+    }
+  ],
+  "action_inventory": [
+    {
+      "action_name": "search_documents",
+      "tool_name": "document_search",
+      "action_type": "read",
+      "description": "Search internal documents for relevant results.",
+      "authority_required": false,
+      "review_required": false,
+      "reliance_required": true,
+      "default_posture": "allowed",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "read_file",
+      "tool_name": "file_read",
+      "action_type": "read",
+      "description": "Read the contents of a file from the internal file system.",
+      "authority_required": false,
+      "review_required": false,
+      "reliance_required": true,
+      "default_posture": "allowed",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "export_research_summary",
+      "tool_name": "export_summary",
+      "action_type": "export",
+      "description": "Export a completed research summary to a shared destination. Requires review.",
+      "authority_required": false,
+      "review_required": true,
+      "reliance_required": false,
+      "default_posture": "requires_approval",
+      "control_status": "partial"
+    }
+  ],
+  "authority_model": null,
+  "policy_controls": [
+    {
+      "control_name": "Human Review Gate for Export",
+      "description": "All research summary exports require review and approval by the requesting analyst before delivery.",
+      "control_status": "partial",
+      "evidence_reference": null,
+      "notes": "Control implementation in progress. Currently enforced by process; technical gate planned."
+    },
+    {
+      "control_name": "Document Access Scoping",
+      "description": "Document search is scoped to repositories accessible to the requesting user.",
+      "control_status": "implemented",
+      "evidence_reference": "access-control-log-ep-research-001",
+      "notes": null
+    }
+  ],
+  "blocked_actions": [],
+  "reliance_summary": [
+    {
+      "source_name": "Internal Document Repository",
+      "source_type": "document_store",
+      "count": 112,
+      "scope_summary": "112 document searches conducted during development testing period. Content used for summary generation.",
+      "evidence_reference": "reliance-log-ep-research-001"
+    },
+    {
+      "source_name": "File Search Service",
+      "source_type": "file_system",
+      "count": 34,
+      "scope_summary": "34 file reads conducted for content summarization.",
+      "evidence_reference": "reliance-log-ep-research-002"
+    }
+  ],
+  "replay_bundles": [
+    {
+      "bundle_id": "rb-research-agent-2026-001-a",
+      "run_id": "run-research-001",
+      "status": "available",
+      "generated_at": "2026-06-30T12:00:00Z",
+      "signed": false,
+      "redacted": false,
+      "validation_status": "valid",
+      "evidence_reference": "replay-store/rb-research-agent-2026-001-a"
+    }
+  ],
+  "validation_summary": {
+    "valid_bundle_count": 1,
+    "invalid_bundle_count": 0,
+    "warning_count": 1,
+    "error_count": 0,
+    "summary": "One replay bundle validated. One warning regarding stale document sources."
+  },
+  "redaction_exports": [],
+  "risk_register": [
+    {
+      "risk_id": "risk-research-001",
+      "title": "Stale Source Material",
+      "description": "Internal documents may be outdated. Research summaries derived from stale sources may mislead business decisions.",
+      "severity": "medium",
+      "status": "open",
+      "mitigation": "Document freshness metadata included in summaries where available. Analysts instructed to verify currency of key sources.",
+      "owner": "Head of Business Intelligence",
+      "evidence_reference": null
+    },
+    {
+      "risk_id": "risk-research-002",
+      "title": "Overbroad File Access",
+      "description": "File read access is currently scoped to any document accessible to the requesting user, which may include documents outside the intended research scope.",
+      "severity": "medium",
+      "status": "open",
+      "mitigation": "Access scoping review planned. Requesting user access controls applied.",
+      "owner": "IT Security",
+      "evidence_reference": null
+    }
+  ],
+  "review_records": [],
+  "metadata": {
+    "development_phase": "internal pilot",
+    "notes": "Draft evidence pack. Pending formal governance review."
+  }
+}

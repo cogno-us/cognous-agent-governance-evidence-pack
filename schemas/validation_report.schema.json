@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/validation_report.schema.json",
+  "title": "ValidationReport",
+  "description": "A validation report produced by the evidence pack validator.",
+  "type": "object",
+  "required": ["valid"],
+  "additionalProperties": false,
+  "properties": {
+    "valid": {
+      "type": "boolean",
+      "description": "True if there are no error-severity issues; warnings do not affect validity."
+    },
+    "pack_id": {
+      "type": ["string", "null"],
+      "description": "The pack_id of the evidence pack that was validated."
+    },
+    "issues": {
+      "type": "array",
+      "description": "List of validation issues found.",
+      "items": {
+        "$ref": "validation_issue.schema.json"
+      }
+    }
+  }
+}

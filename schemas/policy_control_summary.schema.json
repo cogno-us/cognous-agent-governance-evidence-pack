@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/policy_control_summary.schema.json",
+  "title": "PolicyControlSummary",
+  "description": "A policy control in place for an agent.",
+  "type": "object",
+  "required": ["control_name", "description", "control_status"],
+  "additionalProperties": false,
+  "properties": {
+    "control_name": {
+      "type": "string",
+      "description": "The name of this policy control."
+    },
+    "description": {
+      "type": "string",
+      "description": "What this control does and how it works."
+    },
+    "control_status": {
+      "type": "string",
+      "description": "Whether this control is implemented, partial, planned, or not applicable.",
+      "enum": ["implemented", "partial", "planned", "not_applicable"]
+    },
+    "evidence_reference": {
+      "type": ["string", "null"],
+      "description": "A reference to evidence records for this control."
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Additional notes on this control."
+    }
+  }
+}

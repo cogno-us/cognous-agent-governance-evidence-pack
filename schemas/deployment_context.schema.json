@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/deployment_context.schema.json",
+  "title": "DeploymentContext",
+  "description": "The deployment context for an agent in an Agent Governance Evidence Pack.",
+  "type": "object",
+  "required": ["environment"],
+  "additionalProperties": false,
+  "properties": {
+    "environment": {
+      "type": "string",
+      "description": "The deployment environment.",
+      "enum": ["development", "staging", "production", "sandbox", "other"]
+    },
+    "deployment_name": {
+      "type": ["string", "null"],
+      "description": "A human-readable name for this deployment."
+    },
+    "deployment_date": {
+      "type": ["string", "null"],
+      "description": "The date this agent was deployed (ISO 8601)."
+    },
+    "systems_touched": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Systems, APIs, or data stores this agent can access."
+    },
+    "data_domains": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Data domains or classifications this agent operates over."
+    },
+    "geographic_scope": {
+      "type": ["string", "null"],
+      "description": "Geographic or regulatory scope of this deployment."
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Additional deployment context notes."
+    }
+  }
+}

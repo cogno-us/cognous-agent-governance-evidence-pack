@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/tool_inventory_item.schema.json",
+  "title": "ToolInventoryItem",
+  "description": "A single tool available to an agent.",
+  "type": "object",
+  "required": ["tool_name"],
+  "additionalProperties": false,
+  "properties": {
+    "tool_name": {
+      "type": "string",
+      "description": "Unique name of the tool available to this agent."
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "What this tool does."
+    },
+    "external_system": {
+      "type": ["string", "null"],
+      "description": "The external system or API this tool connects to, if any."
+    },
+    "data_classification": {
+      "type": ["string", "null"],
+      "description": "The data classification level for data accessed via this tool."
+    },
+    "access_mode": {
+      "type": ["string", "null"],
+      "description": "The access mode for this tool (e.g., read-only, read-write)."
+    },
+    "control_status": {
+      "type": "string",
+      "description": "Whether controls for this tool are implemented, partial, planned, or not applicable.",
+      "enum": ["implemented", "partial", "planned", "not_applicable"],
+      "default": "planned"
+    }
+  }
+}

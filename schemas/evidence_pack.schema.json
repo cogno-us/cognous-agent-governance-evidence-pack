@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/evidence_pack.schema.json",
+  "title": "EvidencePack",
+  "description": "An Agent Governance Evidence Pack: a business-facing structured document summarizing AI-agent runtime governance evidence for security, risk, compliance, audit, and executive review.",
+  "type": "object",
+  "required": ["pack_id", "title", "generated_at", "agent_overview", "deployment_context"],
+  "additionalProperties": false,
+  "properties": {
+    "pack_id": {
+      "type": "string",
+      "description": "A unique identifier for this evidence pack."
+    },
+    "pack_version": {
+      "type": "string",
+      "description": "The version of the evidence pack format.",
+      "default": "0.1"
+    },
+    "title": {
+      "type": "string",
+      "description": "A human-readable title for this evidence pack."
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "When this evidence pack was generated (ISO 8601)."
+    },
+    "review_status": {
+      "type": "string",
+      "description": "The current review status of this evidence pack.",
+      "enum": ["draft", "in_review", "approved", "approved_with_conditions", "rejected", "retired"],
+      "default": "draft"
+    },
+    "agent_overview": {
+      "$ref": "agent_overview.schema.json",
+      "description": "Overview of the agent being reviewed."
+    },
+    "deployment_context": {
+      "$ref": "deployment_context.schema.json",
+      "description": "The deployment context for this agent."
+    },
+    "tool_inventory": {
+      "type": "array",
+      "description": "Inventory of tools available to this agent.",
+      "items": {
+        "$ref": "tool_inventory_item.schema.json"
+      }
+    },
+    "action_inventory": {
+      "type": "array",
+      "description": "Inventory of actions this agent can propose.",
+      "items": {
+        "$ref": "action_inventory_item.schema.json"
+      }
+    },
+    "authority_model": {
+      "oneOf": [
+        { "$ref": "authority_model_summary.schema.json" },
+        { "type": "null" }
+      ],
+      "description": "Summary of the authority model governing privileged actions."
+    },
+    "policy_controls": {
+      "type": "array",
+      "description": "Policy controls in place for this agent.",
+      "items": {
+        "$ref": "policy_control_summary.schema.json"
+      }
+    },
+    "blocked_actions": {
+      "type": "array",
+      "description": "Summary of actions that were blocked during the review period.",
+      "items": {
+        "$ref": "blocked_action_summary.schema.json"
+      }
+    },
+    "reliance_summary": {
+      "type": "array",
+      "description": "Summary of sources this agent relied on.",
+      "items": {
+        "$ref": "reliance_summary.schema.json"
+      }
+    },
+    "replay_bundles": {
+      "type": "array",
+      "description": "Inventory of replay bundles associated with this evidence pack.",
+      "items": {
+        "$ref": "replay_bundle_inventory_item.schema.json"
+      }
+    },
+    "validation_summary": {
+      "oneOf": [
+        { "$ref": "validation_summary.schema.json" },
+        { "type": "null" }
+      ],
+      "description": "Summary of validation results for replay bundles."
+    },
+    "redaction_exports": {
+      "type": "array",
+      "description": "Summary of redacted or signed exports generated from this evidence.",
+      "items": {
+        "$ref": "redaction_export_summary.schema.json"
+      }
+    },
+    "risk_register": {
+      "type": "array",
+      "description": "Register of known risks associated with this agent.",
+      "items": {
+        "$ref": "risk_register_item.schema.json"
+      }
+    },
+    "review_records": {
+      "type": "array",
+      "description": "Records of governance reviews conducted on this evidence pack.",
+      "items": {
+        "$ref": "review_record.schema.json"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata for extensibility.",
+      "additionalProperties": true
+    }
+  }
+}

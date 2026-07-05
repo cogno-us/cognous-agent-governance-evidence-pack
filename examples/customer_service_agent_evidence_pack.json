@@ -1,0 +1,166 @@
+{
+  "pack_id": "ep-cs-agent-2026-001",
+  "pack_version": "0.1",
+  "title": "Customer Service Agent — Governance Evidence Pack",
+  "generated_at": "2026-07-01T09:00:00Z",
+  "review_status": "in_review",
+  "agent_overview": {
+    "agent_name": "CustomerServiceAgent",
+    "agent_description": "Reads CRM records and drafts outbound customer emails. Human review is required before any email is sent.",
+    "business_purpose": "Automate routine customer query responses by reading CRM records and drafting reply emails for human review and approval before sending.",
+    "owner": "Head of Customer Operations",
+    "business_unit": "Customer Experience",
+    "user_population": "Customer service team members and supervisors",
+    "lifecycle_stage": "pilot"
+  },
+  "deployment_context": {
+    "environment": "staging",
+    "deployment_name": "cs-agent-staging-v1",
+    "deployment_date": "2026-06-15",
+    "systems_touched": ["CRM Platform", "Email Gateway"],
+    "data_domains": ["customer-data", "communication-records"],
+    "geographic_scope": "North America",
+    "notes": "Staging deployment for pilot evaluation. Production rollout pending governance review."
+  },
+  "tool_inventory": [
+    {
+      "tool_name": "crm_read",
+      "description": "Read customer records and interaction history from the CRM platform.",
+      "external_system": "CRM Platform",
+      "data_classification": "confidential",
+      "access_mode": "read-only",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "email_send",
+      "description": "Send outbound email to customers via the Email Gateway.",
+      "external_system": "Email Gateway",
+      "data_classification": "confidential",
+      "access_mode": "write",
+      "control_status": "implemented"
+    }
+  ],
+  "action_inventory": [
+    {
+      "action_name": "read_customer_record",
+      "tool_name": "crm_read",
+      "action_type": "read",
+      "description": "Retrieve a customer record and interaction history from the CRM.",
+      "authority_required": false,
+      "review_required": false,
+      "reliance_required": true,
+      "default_posture": "allowed",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "send_customer_email",
+      "tool_name": "email_send",
+      "action_type": "external_send",
+      "description": "Send a drafted reply email to a customer. Requires authority grant and human review before execution.",
+      "authority_required": true,
+      "review_required": true,
+      "reliance_required": false,
+      "default_posture": "blocked",
+      "control_status": "implemented"
+    }
+  ],
+  "authority_model": {
+    "summary": "Outbound communication requires an explicit authority grant from a customer service supervisor. Authority expires after 8 hours and must be renewed per-session.",
+    "authority_scopes": ["outbound_email"],
+    "privileged_action_types": ["external_send"],
+    "expiration_required": true,
+    "human_approval_required": true,
+    "notes": "Authority grants are logged in the CRM audit trail."
+  },
+  "policy_controls": [
+    {
+      "control_name": "Human Review Gate for Email Send",
+      "description": "All outbound emails drafted by the agent must be reviewed and approved by a human customer service representative before sending.",
+      "control_status": "implemented",
+      "evidence_reference": "control-log-ep-cs-2026-001",
+      "notes": null
+    },
+    {
+      "control_name": "CRM Read Audit Logging",
+      "description": "All CRM read operations are logged with agent identity, customer ID, and timestamp.",
+      "control_status": "implemented",
+      "evidence_reference": "crm-audit-log-ep-cs-2026-001",
+      "notes": null
+    }
+  ],
+  "blocked_actions": [
+    {
+      "action_name": "send_customer_email",
+      "action_type": "external_send",
+      "tool_name": "email_send",
+      "count": 3,
+      "reason_summary": "Outbound email send blocked in three instances due to missing authority grant. Agent attempted to send without completing the authority request flow.",
+      "evidence_reference": "blocked-log-ep-cs-2026-001"
+    }
+  ],
+  "reliance_summary": [
+    {
+      "source_name": "CRM Platform",
+      "source_type": "database",
+      "count": 47,
+      "scope_summary": "Customer records retrieved for query response drafting, covering 47 customer interactions during the pilot period.",
+      "evidence_reference": "reliance-log-ep-cs-2026-001"
+    }
+  ],
+  "replay_bundles": [
+    {
+      "bundle_id": "rb-cs-agent-2026-001-a",
+      "run_id": "run-cs-001",
+      "status": "available",
+      "generated_at": "2026-06-30T18:00:00Z",
+      "signed": true,
+      "redacted": true,
+      "validation_status": "valid",
+      "evidence_reference": "replay-store/rb-cs-agent-2026-001-a"
+    }
+  ],
+  "validation_summary": {
+    "valid_bundle_count": 1,
+    "invalid_bundle_count": 0,
+    "warning_count": 0,
+    "error_count": 0,
+    "summary": "One replay bundle validated successfully. No errors or warnings."
+  },
+  "redaction_exports": [
+    {
+      "export_id": "export-cs-2026-001-redacted",
+      "export_type": "redacted_evidence_pack",
+      "redacted_fields": ["customer_ids", "email_content"],
+      "generated_at": "2026-07-01T08:00:00Z",
+      "intended_recipient": "Compliance Review Team",
+      "evidence_reference": "exports/export-cs-2026-001-redacted"
+    }
+  ],
+  "risk_register": [
+    {
+      "risk_id": "risk-cs-001",
+      "title": "Outbound Communication Without Authority",
+      "description": "Agent may attempt to send emails without a valid authority grant. Blocked in three pilot instances. Risk remains open until authority enforcement is tested at scale.",
+      "severity": "high",
+      "status": "mitigated",
+      "mitigation": "Human review gate blocks all sends without authority. Blocked-action logging implemented.",
+      "owner": "Head of Customer Operations",
+      "evidence_reference": "risk-log-ep-cs-2026-001"
+    },
+    {
+      "risk_id": "risk-cs-002",
+      "title": "Customer Data Exposure in Draft Emails",
+      "description": "Drafted emails may inadvertently include confidential customer data from CRM records. Redacted export implemented for compliance review.",
+      "severity": "medium",
+      "status": "mitigated",
+      "mitigation": "Redacted exports produced for compliance review. Human reviewers check content before send.",
+      "owner": "Data Protection Officer",
+      "evidence_reference": "risk-log-ep-cs-2026-002"
+    }
+  ],
+  "review_records": [],
+  "metadata": {
+    "pilot_period": "2026-06-15 to 2026-06-30",
+    "notes": "Under governance review. Review records will be added following formal review."
+  }
+}

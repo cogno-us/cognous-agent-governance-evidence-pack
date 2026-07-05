@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/blocked_action_summary.schema.json",
+  "title": "BlockedActionSummary",
+  "description": "Summary of a blocked action from a runtime period.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "action_name": {
+      "type": ["string", "null"],
+      "description": "The name of the blocked action, if known."
+    },
+    "action_type": {
+      "type": ["string", "null"],
+      "description": "The type of the blocked action, if known.",
+      "enum": ["read", "write", "external_send", "delete", "export", "purchase", "approve", "escalate", "other", null]
+    },
+    "tool_name": {
+      "type": ["string", "null"],
+      "description": "The tool through which the action was attempted, if known."
+    },
+    "count": {
+      "type": "integer",
+      "description": "The number of times this action was blocked.",
+      "minimum": 0,
+      "default": 0
+    },
+    "reason_summary": {
+      "type": ["string", "null"],
+      "description": "A summary of why this action was blocked."
+    },
+    "evidence_reference": {
+      "type": ["string", "null"],
+      "description": "A reference to the evidence records for these blocked actions."
+    }
+  }
+}
