@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/validation_issue.schema.json",
+  "title": "ValidationIssue",
+  "description": "A single validation issue from evidence pack validation.",
+  "type": "object",
+  "required": ["severity", "code", "message"],
+  "additionalProperties": false,
+  "properties": {
+    "severity": {
+      "type": "string",
+      "description": "Severity of this validation issue.",
+      "enum": ["error", "warning"]
+    },
+    "code": {
+      "type": "string",
+      "description": "A stable code string identifying the type of issue."
+    },
+    "message": {
+      "type": "string",
+      "description": "A business-readable description of the issue."
+    },
+    "path": {
+      "type": ["string", "null"],
+      "description": "The field path within the evidence pack where this issue was found."
+    }
+  }
+}

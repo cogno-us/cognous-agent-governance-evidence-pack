@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/validation_summary.schema.json",
+  "title": "ValidationSummary",
+  "description": "Summary of validation results for replay bundles.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "valid_bundle_count": {
+      "type": "integer",
+      "description": "Number of replay bundles that passed validation.",
+      "minimum": 0,
+      "default": 0
+    },
+    "invalid_bundle_count": {
+      "type": "integer",
+      "description": "Number of replay bundles that failed validation.",
+      "minimum": 0,
+      "default": 0
+    },
+    "warning_count": {
+      "type": "integer",
+      "description": "Total number of validation warnings across all bundles.",
+      "minimum": 0,
+      "default": 0
+    },
+    "error_count": {
+      "type": "integer",
+      "description": "Total number of validation errors across all bundles.",
+      "minimum": 0,
+      "default": 0
+    },
+    "summary": {
+      "type": ["string", "null"],
+      "description": "A short narrative summary of the validation results."
+    }
+  }
+}

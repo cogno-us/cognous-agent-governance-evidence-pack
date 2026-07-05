@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/redaction_export_summary.schema.json",
+  "title": "RedactionExportSummary",
+  "description": "Summary of a redacted or signed export generated from evidence.",
+  "type": "object",
+  "required": ["export_id", "export_type"],
+  "additionalProperties": false,
+  "properties": {
+    "export_id": {
+      "type": "string",
+      "description": "A unique identifier for this redacted export."
+    },
+    "export_type": {
+      "type": "string",
+      "description": "The type of export (e.g., redacted_evidence_pack, executive_summary, audit_export)."
+    },
+    "redacted_fields": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Fields that were redacted in this export."
+    },
+    "generated_at": {
+      "type": ["string", "null"],
+      "description": "When this export was generated (ISO 8601)."
+    },
+    "intended_recipient": {
+      "type": ["string", "null"],
+      "description": "The intended recipient or audience for this export."
+    },
+    "evidence_reference": {
+      "type": ["string", "null"],
+      "description": "A reference to this export in the evidence store."
+    }
+  }
+}

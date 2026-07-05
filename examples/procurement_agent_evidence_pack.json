@@ -1,0 +1,229 @@
+{
+  "pack_id": "ep-procurement-agent-2026-001",
+  "pack_version": "0.1",
+  "title": "Procurement Agent — Governance Evidence Pack",
+  "generated_at": "2026-07-01T11:00:00Z",
+  "review_status": "approved_with_conditions",
+  "agent_overview": {
+    "agent_name": "ProcurementAgent",
+    "agent_description": "Compares vendor quotes and drafts purchase recommendations. Purchase order creation and vendor email sends require authority and human approval.",
+    "business_purpose": "Automate vendor quote comparison and purchase recommendation drafting for the procurement team, with human approval required before any purchase order is created or vendor is contacted.",
+    "owner": "Head of Procurement",
+    "business_unit": "Finance and Operations",
+    "user_population": "Procurement team members and finance approvers",
+    "lifecycle_stage": "production"
+  },
+  "deployment_context": {
+    "environment": "production",
+    "deployment_name": "procurement-agent-prod-v1",
+    "deployment_date": "2026-05-01",
+    "systems_touched": ["Procurement Platform", "Vendor Database", "Email Gateway", "ERP System"],
+    "data_domains": ["procurement-data", "vendor-data", "financial-data", "communication-records"],
+    "geographic_scope": "North America, EMEA",
+    "notes": "Production deployment with conditions. Agent operates under human approval requirements for all transactional actions."
+  },
+  "tool_inventory": [
+    {
+      "tool_name": "vendor_db_read",
+      "description": "Read vendor quotes, profiles, and historical procurement data.",
+      "external_system": "Vendor Database",
+      "data_classification": "confidential",
+      "access_mode": "read-only",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "erp_read",
+      "description": "Read purchase order history and budget data from the ERP system.",
+      "external_system": "ERP System",
+      "data_classification": "confidential",
+      "access_mode": "read-only",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "purchase_order_create",
+      "description": "Create a purchase order in the procurement platform.",
+      "external_system": "Procurement Platform",
+      "data_classification": "confidential",
+      "access_mode": "write",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "vendor_email_send",
+      "description": "Send outbound email to a vendor via the Email Gateway.",
+      "external_system": "Email Gateway",
+      "data_classification": "confidential",
+      "access_mode": "write",
+      "control_status": "implemented"
+    }
+  ],
+  "action_inventory": [
+    {
+      "action_name": "read_vendor_quotes",
+      "tool_name": "vendor_db_read",
+      "action_type": "read",
+      "description": "Retrieve vendor quotes for comparison.",
+      "authority_required": false,
+      "review_required": false,
+      "reliance_required": true,
+      "default_posture": "allowed",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "read_erp_budget",
+      "tool_name": "erp_read",
+      "action_type": "read",
+      "description": "Read budget and purchase order history from ERP.",
+      "authority_required": false,
+      "review_required": false,
+      "reliance_required": true,
+      "default_posture": "allowed",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "create_purchase_order",
+      "tool_name": "purchase_order_create",
+      "action_type": "purchase",
+      "description": "Create a purchase order in the procurement platform. Requires authority and human approval.",
+      "authority_required": true,
+      "review_required": true,
+      "reliance_required": false,
+      "default_posture": "blocked",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "send_vendor_email",
+      "tool_name": "vendor_email_send",
+      "action_type": "external_send",
+      "description": "Send an email to a vendor. Requires authority and human review.",
+      "authority_required": true,
+      "review_required": true,
+      "reliance_required": false,
+      "default_posture": "blocked",
+      "control_status": "implemented"
+    }
+  ],
+  "authority_model": {
+    "summary": "Purchase order creation and vendor email sends require an explicit authority grant from a finance approver. Authority is scoped per transaction and expires after 24 hours.",
+    "authority_scopes": ["purchase_order", "vendor_outbound_email"],
+    "privileged_action_types": ["purchase", "external_send"],
+    "expiration_required": true,
+    "human_approval_required": true,
+    "notes": "All authority grants and approvals are logged in the ERP audit trail."
+  },
+  "policy_controls": [
+    {
+      "control_name": "Human Approval Gate for Purchase Orders",
+      "description": "All purchase order proposals require explicit approval from an authorized finance approver before creation.",
+      "control_status": "implemented",
+      "evidence_reference": "control-log-ep-procurement-001-po",
+      "notes": null
+    },
+    {
+      "control_name": "Human Review Gate for Vendor Email",
+      "description": "All vendor emails drafted by the agent require review and approval before sending.",
+      "control_status": "implemented",
+      "evidence_reference": "control-log-ep-procurement-001-email",
+      "notes": null
+    },
+    {
+      "control_name": "Vendor Data Access Logging",
+      "description": "All vendor database reads are logged with agent identity, vendor ID, and timestamp.",
+      "control_status": "implemented",
+      "evidence_reference": "access-log-ep-procurement-001",
+      "notes": null
+    }
+  ],
+  "blocked_actions": [
+    {
+      "action_name": "create_purchase_order",
+      "action_type": "purchase",
+      "tool_name": "purchase_order_create",
+      "count": 5,
+      "reason_summary": "Five purchase order attempts were blocked due to missing authority grant. Agent initiated purchase flow without a valid authority token.",
+      "evidence_reference": "blocked-log-ep-procurement-001"
+    }
+  ],
+  "reliance_summary": [
+    {
+      "source_name": "Vendor Database",
+      "source_type": "database",
+      "count": 89,
+      "scope_summary": "89 vendor quote retrievals used for procurement comparison during the review period.",
+      "evidence_reference": "reliance-log-ep-procurement-001"
+    },
+    {
+      "source_name": "ERP System",
+      "source_type": "erp",
+      "count": 22,
+      "scope_summary": "22 budget and purchase order history reads for decision context.",
+      "evidence_reference": "reliance-log-ep-procurement-002"
+    }
+  ],
+  "replay_bundles": [
+    {
+      "bundle_id": "rb-procurement-agent-2026-001-a",
+      "run_id": "run-procurement-001",
+      "status": "available",
+      "generated_at": "2026-06-30T16:00:00Z",
+      "signed": true,
+      "redacted": true,
+      "validation_status": "valid",
+      "evidence_reference": "replay-store/rb-procurement-agent-2026-001-a"
+    }
+  ],
+  "validation_summary": {
+    "valid_bundle_count": 1,
+    "invalid_bundle_count": 0,
+    "warning_count": 0,
+    "error_count": 0,
+    "summary": "One replay bundle validated successfully. No errors or warnings."
+  },
+  "redaction_exports": [
+    {
+      "export_id": "export-procurement-2026-001-redacted",
+      "export_type": "redacted_evidence_pack",
+      "redacted_fields": ["vendor_pricing", "internal_budget_figures"],
+      "generated_at": "2026-07-01T07:00:00Z",
+      "intended_recipient": "External Audit Team",
+      "evidence_reference": "exports/export-procurement-2026-001-redacted"
+    }
+  ],
+  "risk_register": [
+    {
+      "risk_id": "risk-procurement-001",
+      "title": "Purchase Order Without Authority",
+      "description": "Agent attempted purchase order creation without authority on five occasions. Risk mitigated by blocking controls but remains a process risk.",
+      "severity": "high",
+      "status": "mitigated",
+      "mitigation": "Authority gate enforced. Blocked-action logging active. Developer notified to fix authority flow.",
+      "owner": "Head of Procurement",
+      "evidence_reference": "risk-log-ep-procurement-001"
+    },
+    {
+      "risk_id": "risk-procurement-002",
+      "title": "Vendor Data Handling in Multi-Region Deployment",
+      "description": "Vendor data accessed in EMEA region may be subject to additional data handling requirements. Compliance review in progress.",
+      "severity": "medium",
+      "status": "open",
+      "mitigation": "Legal and compliance review scheduled for Q3 2026.",
+      "owner": "General Counsel",
+      "evidence_reference": null
+    }
+  ],
+  "review_records": [
+    {
+      "reviewer": "J. Martinez",
+      "reviewer_role": "Chief Risk Officer",
+      "reviewed_at": "2026-07-01T11:00:00Z",
+      "decision": "approved_with_conditions",
+      "notes": "Approved with conditions: (1) Authority flow defect must be resolved within 30 days. (2) EMEA vendor data handling compliance review must be completed before EMEA rollout expansion. (3) Monthly blocked-action report required."
+    }
+  ],
+  "metadata": {
+    "approval_conditions": [
+      "Authority flow defect resolution within 30 days",
+      "EMEA compliance review before expansion",
+      "Monthly blocked-action reporting"
+    ]
+  }
+}

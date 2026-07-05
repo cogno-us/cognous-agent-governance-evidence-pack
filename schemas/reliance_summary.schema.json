@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/reliance_summary.schema.json",
+  "title": "RelianceSummary",
+  "description": "Summary of agent reliance on a source during the review period.",
+  "type": "object",
+  "required": ["source_name", "source_type"],
+  "additionalProperties": false,
+  "properties": {
+    "source_name": {
+      "type": "string",
+      "description": "The name of the source the agent relied on."
+    },
+    "source_type": {
+      "type": "string",
+      "description": "The type of source (e.g., document, database, API, file)."
+    },
+    "count": {
+      "type": "integer",
+      "description": "The number of times this source was relied on.",
+      "minimum": 0,
+      "default": 0
+    },
+    "scope_summary": {
+      "type": ["string", "null"],
+      "description": "A summary of the scope of reliance on this source."
+    },
+    "evidence_reference": {
+      "type": ["string", "null"],
+      "description": "A reference to the reliance records for this source."
+    }
+  }
+}

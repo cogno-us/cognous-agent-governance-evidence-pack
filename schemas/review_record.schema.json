@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/review_record.schema.json",
+  "title": "ReviewRecord",
+  "description": "A governance review record for an evidence pack.",
+  "type": "object",
+  "required": ["reviewer", "decision"],
+  "additionalProperties": false,
+  "properties": {
+    "reviewer": {
+      "type": "string",
+      "description": "The name or identifier of the reviewer."
+    },
+    "reviewer_role": {
+      "type": ["string", "null"],
+      "description": "The role of the reviewer (e.g., CISO, Risk Manager, Compliance Lead)."
+    },
+    "reviewed_at": {
+      "type": ["string", "null"],
+      "description": "When the review was completed (ISO 8601)."
+    },
+    "decision": {
+      "type": "string",
+      "description": "The review decision.",
+      "enum": ["draft", "in_review", "approved", "approved_with_conditions", "rejected", "retired"]
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Notes from the reviewer, including any conditions."
+    }
+  }
+}

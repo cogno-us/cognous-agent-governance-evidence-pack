@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/agent_overview.schema.json",
+  "title": "AgentOverview",
+  "description": "Overview of the agent being reviewed in an Agent Governance Evidence Pack.",
+  "type": "object",
+  "required": ["agent_name", "business_purpose"],
+  "additionalProperties": false,
+  "properties": {
+    "agent_name": {
+      "type": "string",
+      "description": "The name of the agent being reviewed."
+    },
+    "agent_description": {
+      "type": ["string", "null"],
+      "description": "A short description of what this agent does."
+    },
+    "business_purpose": {
+      "type": "string",
+      "description": "The business purpose this agent serves. Why does it exist?"
+    },
+    "owner": {
+      "type": ["string", "null"],
+      "description": "The business or technical owner responsible for this agent."
+    },
+    "business_unit": {
+      "type": ["string", "null"],
+      "description": "The business unit that owns or operates this agent."
+    },
+    "user_population": {
+      "type": ["string", "null"],
+      "description": "Description of the users or systems that interact with this agent."
+    },
+    "lifecycle_stage": {
+      "type": ["string", "null"],
+      "description": "The lifecycle stage of this agent (e.g., pilot, production, deprecated)."
+    }
+  }
+}

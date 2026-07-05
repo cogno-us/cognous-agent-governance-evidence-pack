@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/replay_bundle_inventory_item.schema.json",
+  "title": "ReplayBundleInventoryItem",
+  "description": "An entry in the replay bundle inventory.",
+  "type": "object",
+  "required": ["bundle_id"],
+  "additionalProperties": false,
+  "properties": {
+    "bundle_id": {
+      "type": "string",
+      "description": "A unique identifier for this replay bundle."
+    },
+    "run_id": {
+      "type": ["string", "null"],
+      "description": "The run identifier associated with this replay bundle."
+    },
+    "status": {
+      "type": ["string", "null"],
+      "description": "The status of this replay bundle (e.g., available, archived)."
+    },
+    "generated_at": {
+      "type": ["string", "null"],
+      "description": "When this replay bundle was generated (ISO 8601)."
+    },
+    "signed": {
+      "type": "boolean",
+      "description": "Whether this replay bundle has been cryptographically signed.",
+      "default": false
+    },
+    "redacted": {
+      "type": "boolean",
+      "description": "Whether this replay bundle has been redacted for export.",
+      "default": false
+    },
+    "validation_status": {
+      "type": ["string", "null"],
+      "description": "The validation status of this replay bundle."
+    },
+    "evidence_reference": {
+      "type": ["string", "null"],
+      "description": "A reference to this replay bundle in the evidence store."
+    }
+  }
+}

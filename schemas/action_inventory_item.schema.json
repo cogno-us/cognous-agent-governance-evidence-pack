@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/action_inventory_item.schema.json",
+  "title": "ActionInventoryItem",
+  "description": "A single action an agent can propose.",
+  "type": "object",
+  "required": ["action_name", "tool_name", "action_type"],
+  "additionalProperties": false,
+  "properties": {
+    "action_name": {
+      "type": "string",
+      "description": "Unique name of the action this agent can propose."
+    },
+    "tool_name": {
+      "type": "string",
+      "description": "The tool through which this action is executed."
+    },
+    "action_type": {
+      "type": "string",
+      "description": "The type of action.",
+      "enum": ["read", "write", "external_send", "delete", "export", "purchase", "approve", "escalate", "other"]
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "What this action does."
+    },
+    "authority_required": {
+      "type": "boolean",
+      "description": "Whether this action requires explicit authority to be granted before execution.",
+      "default": false
+    },
+    "review_required": {
+      "type": "boolean",
+      "description": "Whether this action requires human review before execution.",
+      "default": false
+    },
+    "reliance_required": {
+      "type": "boolean",
+      "description": "Whether execution of this action creates a reliance record.",
+      "default": false
+    },
+    "default_posture": {
+      "type": ["string", "null"],
+      "description": "The default posture for this action (e.g., allowed, blocked, requires_approval)."
+    },
+    "control_status": {
+      "type": "string",
+      "description": "Whether controls for this action are implemented, partial, planned, or not applicable.",
+      "enum": ["implemented", "partial", "planned", "not_applicable"],
+      "default": "planned"
+    }
+  }
+}

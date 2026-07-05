@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cogno-us/cognous-agent-governance-evidence-pack/schemas/authority_model_summary.schema.json",
+  "title": "AuthorityModelSummary",
+  "description": "Summary of the authority model governing privileged actions.",
+  "type": "object",
+  "required": ["summary"],
+  "additionalProperties": false,
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "A short summary of how authority is granted and governed for privileged actions."
+    },
+    "authority_scopes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The scopes of authority that can be granted to this agent."
+    },
+    "privileged_action_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["read", "write", "external_send", "delete", "export", "purchase", "approve", "escalate", "other"]
+      },
+      "description": "Action types that are considered privileged and require authority."
+    },
+    "expiration_required": {
+      "type": "boolean",
+      "description": "Whether authority grants must expire.",
+      "default": false
+    },
+    "human_approval_required": {
+      "type": "boolean",
+      "description": "Whether a human must approve authority grants.",
+      "default": false
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Additional notes on the authority model."
+    }
+  }
+}

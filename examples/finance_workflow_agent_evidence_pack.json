@@ -1,0 +1,249 @@
+{
+  "pack_id": "ep-finance-agent-2026-001",
+  "pack_version": "0.1",
+  "title": "Finance Workflow Agent — Governance Evidence Pack",
+  "generated_at": "2026-07-01T12:00:00Z",
+  "review_status": "approved_with_conditions",
+  "agent_overview": {
+    "agent_name": "FinanceWorkflowAgent",
+    "agent_description": "Reads invoices and proposes payment approvals. Payment approval execution requires explicit authority and human review. Produces signed audit exports.",
+    "business_purpose": "Streamline invoice review and payment approval workflows by reading invoice data, validating against purchase orders, and proposing payment approvals for human authorization.",
+    "owner": "Chief Financial Officer",
+    "business_unit": "Finance",
+    "user_population": "Finance team members, payment approvers, and internal auditors",
+    "lifecycle_stage": "production"
+  },
+  "deployment_context": {
+    "environment": "production",
+    "deployment_name": "finance-agent-prod-v2",
+    "deployment_date": "2026-04-01",
+    "systems_touched": ["Invoice Management System", "Payment Gateway", "ERP System", "Audit Export Service"],
+    "data_domains": ["financial-data", "payment-data", "invoice-data", "audit-records"],
+    "geographic_scope": "Global",
+    "notes": "Production deployment. All payment approval actions require two-factor human authorization."
+  },
+  "tool_inventory": [
+    {
+      "tool_name": "invoice_read",
+      "description": "Read invoice records from the Invoice Management System.",
+      "external_system": "Invoice Management System",
+      "data_classification": "confidential",
+      "access_mode": "read-only",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "erp_po_read",
+      "description": "Read purchase order records from the ERP system for invoice matching.",
+      "external_system": "ERP System",
+      "data_classification": "confidential",
+      "access_mode": "read-only",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "payment_approve",
+      "description": "Submit a payment approval to the Payment Gateway. Requires authority and two-factor human authorization.",
+      "external_system": "Payment Gateway",
+      "data_classification": "restricted",
+      "access_mode": "write",
+      "control_status": "implemented"
+    },
+    {
+      "tool_name": "audit_export",
+      "description": "Export signed audit records to the Audit Export Service.",
+      "external_system": "Audit Export Service",
+      "data_classification": "confidential",
+      "access_mode": "write",
+      "control_status": "implemented"
+    }
+  ],
+  "action_inventory": [
+    {
+      "action_name": "read_invoice",
+      "tool_name": "invoice_read",
+      "action_type": "read",
+      "description": "Retrieve invoice records for processing.",
+      "authority_required": false,
+      "review_required": false,
+      "reliance_required": true,
+      "default_posture": "allowed",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "match_invoice_to_po",
+      "tool_name": "erp_po_read",
+      "action_type": "read",
+      "description": "Read purchase order data for invoice matching.",
+      "authority_required": false,
+      "review_required": false,
+      "reliance_required": true,
+      "default_posture": "allowed",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "propose_payment_approval",
+      "tool_name": "payment_approve",
+      "action_type": "approve",
+      "description": "Propose a payment approval to the Payment Gateway. Requires authority grant and two-factor human authorization.",
+      "authority_required": true,
+      "review_required": true,
+      "reliance_required": false,
+      "default_posture": "blocked",
+      "control_status": "implemented"
+    },
+    {
+      "action_name": "export_audit_record",
+      "tool_name": "audit_export",
+      "action_type": "export",
+      "description": "Export a signed audit record to the audit service.",
+      "authority_required": false,
+      "review_required": true,
+      "reliance_required": false,
+      "default_posture": "requires_approval",
+      "control_status": "implemented"
+    }
+  ],
+  "authority_model": {
+    "summary": "Payment approval actions require an authority grant from an authorized payment approver. Two-factor human authorization is required. Authority is scoped per payment batch and expires after 4 hours.",
+    "authority_scopes": ["payment_approval"],
+    "privileged_action_types": ["approve"],
+    "expiration_required": true,
+    "human_approval_required": true,
+    "notes": "All authority grants are logged in the ERP audit trail and require dual-authorization for payments above the materiality threshold."
+  },
+  "policy_controls": [
+    {
+      "control_name": "Two-Factor Human Authorization for Payments",
+      "description": "All payment approval proposals require two-factor human authorization: initial approver and a secondary reviewer for payments above materiality threshold.",
+      "control_status": "implemented",
+      "evidence_reference": "control-log-ep-finance-001-payment",
+      "notes": null
+    },
+    {
+      "control_name": "Human Review Gate for Audit Export",
+      "description": "Audit exports require review by the finance compliance lead before delivery to the audit service.",
+      "control_status": "implemented",
+      "evidence_reference": "control-log-ep-finance-001-audit",
+      "notes": null
+    },
+    {
+      "control_name": "Invoice and PO Audit Logging",
+      "description": "All invoice reads and PO matches are logged with agent identity, document IDs, and timestamps.",
+      "control_status": "implemented",
+      "evidence_reference": "access-log-ep-finance-001",
+      "notes": null
+    }
+  ],
+  "blocked_actions": [
+    {
+      "action_name": "propose_payment_approval",
+      "action_type": "approve",
+      "tool_name": "payment_approve",
+      "count": 2,
+      "reason_summary": "Two payment approval proposals were blocked due to expired authority grants. Approvals resubmitted with valid authority on the following business day.",
+      "evidence_reference": "blocked-log-ep-finance-001"
+    }
+  ],
+  "reliance_summary": [
+    {
+      "source_name": "Invoice Management System",
+      "source_type": "database",
+      "count": 204,
+      "scope_summary": "204 invoice records read for payment processing during the review period.",
+      "evidence_reference": "reliance-log-ep-finance-001"
+    },
+    {
+      "source_name": "ERP System",
+      "source_type": "erp",
+      "count": 186,
+      "scope_summary": "186 purchase order reads for invoice matching.",
+      "evidence_reference": "reliance-log-ep-finance-002"
+    }
+  ],
+  "replay_bundles": [
+    {
+      "bundle_id": "rb-finance-agent-2026-001-a",
+      "run_id": "run-finance-001",
+      "status": "available",
+      "generated_at": "2026-06-30T20:00:00Z",
+      "signed": true,
+      "redacted": false,
+      "validation_status": "valid",
+      "evidence_reference": "replay-store/rb-finance-agent-2026-001-a"
+    },
+    {
+      "bundle_id": "rb-finance-agent-2026-001-b",
+      "run_id": "run-finance-002",
+      "status": "available",
+      "generated_at": "2026-07-01T06:00:00Z",
+      "signed": true,
+      "redacted": true,
+      "validation_status": "valid",
+      "evidence_reference": "replay-store/rb-finance-agent-2026-001-b"
+    }
+  ],
+  "validation_summary": {
+    "valid_bundle_count": 2,
+    "invalid_bundle_count": 0,
+    "warning_count": 0,
+    "error_count": 0,
+    "summary": "Two replay bundles validated successfully. No errors or warnings."
+  },
+  "redaction_exports": [
+    {
+      "export_id": "export-finance-2026-001-audit",
+      "export_type": "audit_export",
+      "redacted_fields": ["payment_amounts", "vendor_bank_details"],
+      "generated_at": "2026-07-01T08:00:00Z",
+      "intended_recipient": "Internal Audit",
+      "evidence_reference": "exports/export-finance-2026-001-audit"
+    },
+    {
+      "export_id": "export-finance-2026-001-exec",
+      "export_type": "executive_summary",
+      "redacted_fields": ["payment_amounts", "invoice_details", "vendor_bank_details"],
+      "generated_at": "2026-07-01T09:00:00Z",
+      "intended_recipient": "CFO and Board Risk Committee",
+      "evidence_reference": "exports/export-finance-2026-001-exec"
+    }
+  ],
+  "risk_register": [
+    {
+      "risk_id": "risk-finance-001",
+      "title": "Payment Approval With Expired Authority",
+      "description": "Two payment approval proposals were submitted with expired authority grants. Blocked by controls but highlights a process gap in authority renewal.",
+      "severity": "high",
+      "status": "mitigated",
+      "mitigation": "Authority renewal reminder added to agent workflow. Blocked-action alerting implemented.",
+      "owner": "Chief Financial Officer",
+      "evidence_reference": "risk-log-ep-finance-001"
+    },
+    {
+      "risk_id": "risk-finance-002",
+      "title": "Invoice Data Completeness",
+      "description": "Some invoices in the review period lacked complete PO matching data, requiring manual fallback. Agent may propose approvals on partially matched invoices.",
+      "severity": "medium",
+      "status": "mitigated",
+      "mitigation": "Incomplete match flag added to proposals. Reviewers required to confirm completeness before authorizing.",
+      "owner": "Finance Operations Manager",
+      "evidence_reference": "risk-log-ep-finance-002"
+    }
+  ],
+  "review_records": [
+    {
+      "reviewer": "A. Thompson",
+      "reviewer_role": "Chief Financial Officer",
+      "reviewed_at": "2026-07-01T12:00:00Z",
+      "decision": "approved_with_conditions",
+      "notes": "Approved with conditions: (1) Authority renewal process must be formalized and documented within 14 days. (2) Incomplete invoice match handling must be reviewed and tested before the next payment run. (3) Quarterly evidence pack review scheduled."
+    }
+  ],
+  "metadata": {
+    "materiality_threshold": "USD 10,000",
+    "dual_authorization_required_above": "USD 10,000",
+    "approval_conditions": [
+      "Authority renewal process documentation within 14 days",
+      "Incomplete invoice match handling review before next payment run",
+      "Quarterly evidence pack review"
+    ]
+  }
+}

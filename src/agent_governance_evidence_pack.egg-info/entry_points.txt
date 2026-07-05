@@ -1,0 +1,2 @@
+[console_scripts]
+agep = agent_governance_evidence_pack.cli:main
