@@ -6,7 +6,6 @@ Entry point: agep
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -71,25 +70,38 @@ def cmd_summarize(args: list[str]) -> int:
     print(f"open_risk_count        : {s['open_risk_count']}")
     print(f"critical_open_risk_count: {s['critical_open_risk_count']}")
 
+    trace = pack.metadata.get("traceable_import") if isinstance(pack.metadata, dict) else None
+    if isinstance(trace, dict):
+        counts = trace.get("derived_counts", {})
+        lifecycle = trace.get("lifecycle_summary", {})
+        print(f"distinct_effect_count  : {counts.get('distinct_effect_count', 'n/a')}")
+        print(f"cp_attempt_count       : {counts.get('control_plane_attempt_count', 'n/a')}")
+        print(f"executor_attempt_count : {counts.get('executor_attempt_count', 'n/a')}")
+        print(f"destination_observed   : {lifecycle.get('destination_observed', 'n/a')}")
+
     return 0
 
 
 def cmd_render(args: list[str]) -> int:
     if not args:
         print(
-            "Usage: agep render <path/to/evidence_pack.json> [--out <output.md>]",
+            "Usage: agep render <path/to/evidence_pack.json> [--out <output.md>] [--traceable]",
             file=sys.stderr,
         )
         return 2
 
     path_str = args[0]
     out_path: str | None = None
+    traceable = False
 
     i = 1
     while i < len(args):
         if args[i] == "--out" and i + 1 < len(args):
             out_path = args[i + 1]
             i += 2
+        elif args[i] == "--traceable":
+            traceable = True
+            i += 1
         else:
             value = args[i]
             if value.startswith("-"):
@@ -97,16 +109,19 @@ def cmd_render(args: list[str]) -> int:
             else:
                 print(f"Unexpected argument: {value}", file=sys.stderr)
             print(
-                "Usage: agep render <path/to/evidence_pack.json> [--out <output.md>]",
+                "Usage: agep render <path/to/evidence_pack.json> [--out <output.md>] [--traceable]",
                 file=sys.stderr,
             )
             return 2
 
     pack = _load_pack(path_str)
 
-    from .renderer import render_markdown
-
-    md = render_markdown(pack)
+    if traceable:
+        from .trace_renderer import render_traceable_markdown
+        md = render_traceable_markdown(pack)
+    else:
+        from .renderer import render_markdown
+        md = render_markdown(pack)
 
     if out_path:
         out = Path(out_path)
@@ -115,6 +130,67 @@ def cmd_render(args: list[str]) -> int:
         print(f"Rendered to {out}")
     else:
         print(md)
+
+    return 0
+
+
+def cmd_import(args: list[str]) -> int:
+    usage = (
+        "Usage: agep import --manifest <manifest.json> --reconstruction <bundle.json> "
+        "--out <evidence_pack.json> [--render <output.md>] [--generated-at <iso8601>]"
+    )
+    manifest_path: str | None = None
+    reconstruction_path: str | None = None
+    out_path: str | None = None
+    render_path: str | None = None
+    generated_at = "1970-01-01T00:00:00Z"
+
+    i = 0
+    while i < len(args):
+        flag = args[i]
+        if flag in {"--manifest", "--reconstruction", "--out", "--render", "--generated-at"} and i + 1 < len(args):
+            value = args[i + 1]
+            if flag == "--manifest":
+                manifest_path = value
+            elif flag == "--reconstruction":
+                reconstruction_path = value
+            elif flag == "--out":
+                out_path = value
+            elif flag == "--render":
+                render_path = value
+            elif flag == "--generated-at":
+                generated_at = value
+            i += 2
+        else:
+            print(usage, file=sys.stderr)
+            return 2
+
+    if not manifest_path or not reconstruction_path or not out_path:
+        print(usage, file=sys.stderr)
+        return 2
+
+    from .importer import ImportErrorDetail, build_evidence_pack_from_files
+    from .loader import dump_evidence_pack
+    from .trace_renderer import render_traceable_markdown
+
+    try:
+        pack = build_evidence_pack_from_files(
+            manifest_path,
+            reconstruction_path,
+            generated_at=generated_at,
+        )
+    except (FileNotFoundError, ValueError, ImportErrorDetail) as exc:
+        print(f"Import error: {exc}", file=sys.stderr)
+        return 1
+
+    dump_evidence_pack(pack, out_path)
+    print(f"Imported traceable evidence pack to {out_path}")
+
+    if render_path:
+        out = Path(render_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(render_traceable_markdown(pack), encoding="utf-8")
+        print(f"Rendered traceable evidence pack to {out}")
 
     return 0
 
@@ -133,7 +209,7 @@ def cmd_check_examples(args: list[str]) -> int:
 
     from .loader import load_evidence_pack
     from .validator import validate_evidence_pack
-    from .renderer import render_markdown
+    from .trace_renderer import render_traceable_markdown
 
     all_valid = True
     for file_path in example_files:
@@ -146,9 +222,7 @@ def cmd_check_examples(args: list[str]) -> int:
 
         report = validate_evidence_pack(pack)
         status = "VALID  " if report.valid else "INVALID"
-        error_count = sum(
-            1 for i in report.issues if i.severity.value == "error"
-        )
+        error_count = sum(1 for i in report.issues if i.severity.value == "error")
         print(f"{status} {Path(file_path).name} ({error_count} error(s), {len(report.issues) - error_count} warning(s))")
 
         if not report.valid:
@@ -157,8 +231,7 @@ def cmd_check_examples(args: list[str]) -> int:
                 if issue.severity.value == "error":
                     print(f"  [ERROR] {issue.code}: {issue.message}")
 
-        # render
-        md = render_markdown(pack)
+        md = render_traceable_markdown(pack)
         rendered_dir = examples_dir / "rendered"
         rendered_dir.mkdir(parents=True, exist_ok=True)
         out_path = rendered_dir / (Path(file_path).stem + ".md")
@@ -172,7 +245,7 @@ def main() -> None:
     if not argv:
         print(
             "Usage: agep <command> [args]\n"
-            "Commands: validate, summarize, render, check-examples",
+            "Commands: validate, summarize, render, import, check-examples",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -186,6 +259,8 @@ def main() -> None:
         sys.exit(cmd_summarize(rest))
     elif command == "render":
         sys.exit(cmd_render(rest))
+    elif command == "import":
+        sys.exit(cmd_import(rest))
     elif command == "check-examples":
         sys.exit(cmd_check_examples(rest))
     else:
