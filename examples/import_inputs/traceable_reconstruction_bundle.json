@@ -1,0 +1,120 @@
+{
+  "bundle_version": "0.2.0",
+  "bundle_id": "rb-refund-success",
+  "run_id": "run-refund-1",
+  "status": "reconstruction_complete",
+  "records": [
+    {
+      "record_id": "rec-frame",
+      "producer_profile_id": "control-plane-bounded-run@28350065",
+      "record_type": "run_frame",
+      "source_path": "rec-frame",
+      "identifiers": {
+        "run_id": "run-refund-1",
+        "frame_id": "frame-1"
+      },
+      "data": {
+        "actor": "RefundAgent",
+        "environment": "staging",
+        "task": "Issue approved refund."
+      }
+    },
+    {
+      "record_id": "rec-proposal",
+      "producer_profile_id": "control-plane-bounded-run@28350065",
+      "record_type": "runtime_proposal",
+      "source_path": "rec-proposal",
+      "identifiers": {
+        "run_id": "run-refund-1",
+        "action_id": "issue_refund"
+      },
+      "data": {
+        "action_id": "issue_refund",
+        "target": "customer-123"
+      }
+    },
+    {
+      "record_id": "rec-decision",
+      "producer_profile_id": "control-plane-bounded-run@28350065",
+      "record_type": "runtime_decision",
+      "source_path": "rec-decision",
+      "identifiers": {
+        "run_id": "run-refund-1",
+        "decision_id": "decision-1",
+        "effect_id": "effect-1"
+      },
+      "data": {
+        "result": "allow",
+        "binding": {
+          "grant_id": "grant-1"
+        },
+        "effect_id": "effect-1"
+      }
+    },
+    {
+      "record_id": "rec-attempt-start",
+      "producer_profile_id": "control-plane-bounded-run@28350065",
+      "record_type": "control_plane_attempt_transition",
+      "source_path": "rec-attempt-start",
+      "identifiers": {
+        "run_id": "run-refund-1",
+        "decision_id": "decision-1",
+        "effect_id": "effect-1",
+        "attempt_id": "cp-attempt-1"
+      },
+      "data": {
+        "status": "started",
+        "attempt_id": "cp-attempt-1"
+      }
+    },
+    {
+      "record_id": "rec-attempt-ack-lost",
+      "producer_profile_id": "control-plane-bounded-run@28350065",
+      "record_type": "control_plane_attempt_transition",
+      "source_path": "rec-attempt-ack-lost",
+      "identifiers": {
+        "run_id": "run-refund-1",
+        "decision_id": "decision-1",
+        "effect_id": "effect-1",
+        "attempt_id": "cp-attempt-1"
+      },
+      "data": {
+        "status": "acknowledgement_lost",
+        "attempt_id": "cp-attempt-1"
+      }
+    },
+    {
+      "record_id": "rec-reliance",
+      "producer_profile_id": "control-plane-bounded-run@28350065",
+      "record_type": "reliance_record",
+      "source_path": "rec-reliance",
+      "identifiers": {
+        "run_id": "run-refund-1",
+        "reliance_id": "rel-1"
+      },
+      "data": {
+        "source_name": "CRM",
+        "source_type": "database",
+        "scope": "refund eligibility"
+      }
+    },
+    {
+      "record_id": "rec-observation",
+      "producer_profile_id": "control-plane-bounded-run@28350065",
+      "record_type": "effect_observation",
+      "source_path": "rec-observation",
+      "identifiers": {
+        "run_id": "run-refund-1",
+        "effect_id": "effect-1"
+      },
+      "data": {
+        "state": "applied",
+        "effect_id": "effect-1"
+      }
+    }
+  ],
+  "import_reports": [],
+  "metadata": {
+    "source_generated_at": "2026-10-05T00:00:00Z"
+  }
+}
