@@ -34,6 +34,12 @@ from .loader import dump_evidence_pack, load_evidence_pack, load_evidence_pack_j
 from .validator import validate_evidence_pack
 from .renderer import render_markdown
 from .summary import summarize_evidence_pack
+from .importer import (
+    ImportErrorDetail,
+    build_evidence_pack_from_artifacts,
+    build_evidence_pack_from_files,
+)
+from .trace_renderer import render_traceable_markdown
 
 __all__ = [
     "EvidencePack",
@@ -65,4 +71,8 @@ __all__ = [
     "validate_evidence_pack",
     "render_markdown",
     "summarize_evidence_pack",
+    "ImportErrorDetail",
+    "build_evidence_pack_from_artifacts",
+    "build_evidence_pack_from_files",
+    "render_traceable_markdown",
 ]
