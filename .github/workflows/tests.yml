@@ -54,13 +54,12 @@ jobs:
           ref: cba83a1c06f718a8afd76178f36e5cc15896347d
           path: upstream/odes
 
-      # Provisional experimental Alvorada/GAX dependency. This is not promoted
-      # to an accepted stack dependency by Batch 3C.
-      - name: Checkout provisional GAX IMX experimental reference
+      # Accepted Alvorada/GAX retained-artifact dependency.
+      - name: Checkout accepted GAX IMX reference
         uses: actions/checkout@v4
         with:
           repository: cogno-us/alvorada
-          ref: 9ad378145d326799e3209136e47e82d66c6f69af
+          ref: 6bcde026a804c7377f5e39f57ca6dd00b3c3292d
           path: upstream/gax-imx
 
       - name: Verify pinned revisions
@@ -70,7 +69,7 @@ jobs:
           test "$(git -C upstream/control-plane rev-parse HEAD)" = "283500652d47a692fb0b99a1172a6d5faffbd9a7"
           test "$(git -C upstream/moltbot-safe rev-parse HEAD)" = "1d308faf664c504b6e310db3c7a310153ef7b067"
           test "$(git -C upstream/odes rev-parse HEAD)" = "cba83a1c06f718a8afd76178f36e5cc15896347d"
-          test "$(git -C upstream/gax-imx rev-parse HEAD)" = "9ad378145d326799e3209136e47e82d66c6f69af"
+          test "$(git -C upstream/gax-imx rev-parse HEAD)" = "6bcde026a804c7377f5e39f57ca6dd00b3c3292d"
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
