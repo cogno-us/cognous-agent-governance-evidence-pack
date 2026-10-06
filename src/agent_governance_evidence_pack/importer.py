@@ -24,7 +24,7 @@ from .models import (
     ValidationSummary,
 )
 
-TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.2.2"
+TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.2.3"
 CANONICALIZATION_PROFILE = "json-sort-keys-compact-utf8-no-nan"
 MANIFEST_REVISION = "46c950bed37fe3812000895430bc0312d29e37ce"
 REPLAY_REVISION = "f12648313cedc2cf06145d397fa56cdea18cc800"
@@ -41,6 +41,7 @@ REQUIRED_REPOS = {
     "cogno-us/moltbot-safe": MOLTBOT_SAFE_REVISION,
     "cogno-us/constitutional-governance-for-institutions": ALVORADA_REVISION,
 }
+EXECUTION_TYPES = {"execution_envelope", "execution_result", "destination_attempt", "destination_attempt_event", "destination_effect"}
 
 
 class ImportContractError(ValueError):
@@ -205,11 +206,11 @@ def _state_from_value(value: Any) -> str:
     if isinstance(value, dict):
         value = value.get("state") or value.get("status") or value.get("result")
     normalized = str(value or "unknown").lower().strip()
-    if normalized in {"applied", "present", "delivered", "success", "succeeded", "executed"}:
+    if normalized in {"applied", "present", "delivered", "success", "succeeded", "executed", "reconciled"}:
         return "applied"
     if normalized in {"partial", "partially_applied", "partial_delivery"}:
         return "partial"
-    if normalized in {"absent", "not_found", "not_applied"}:
+    if normalized in {"absent", "not_found", "not_applied", "safe_to_retry"}:
         return "absent"
     if normalized in {"unknown", "timeout", "acknowledgement_lost", "lost"}:
         return "unknown"
@@ -268,18 +269,30 @@ def _validate_headers(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple
     return actions, findings
 
 
-def _retained_replay_inputs(bundle: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _retained_by_type(bundle: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     by_type: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in sorted(_records(bundle), key=lambda item: item.get("source_sequence", 0)):
         by_type[_record_type(record)].append(deepcopy(_data(record)))
-    if len(by_type.get("runtime_proposal", [])) != 1:
-        raise ImportContractError("importer supports exactly one retained runtime_proposal operation")
+    return by_type
+
+
+def _retained_replay_inputs(bundle: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any] | None]:
+    by_type = _retained_by_type(bundle)
+    if len(by_type.get("runtime_proposal", [])) > 1:
+        raise ImportContractError("importer supports at most one retained runtime_proposal operation")
     if len(by_type.get("runtime_decision", [])) < 1:
         raise ImportContractError("reconstruction bundle must retain at least one runtime_decision")
-    if len(by_type.get("execution_envelope", [])) != 1:
-        raise ImportContractError("reconstruction bundle must retain exactly one execution_envelope")
-    if len(by_type.get("execution_result", [])) != 1:
-        raise ImportContractError("reconstruction bundle must retain exactly one execution_result")
+    for decision in by_type.get("runtime_decision", []):
+        if _decision_result(decision) != "authorized" and _binding(decision) is not None:
+            raise ImportContractError("held or denied runtime_decision cannot carry an authorization/effect binding")
+    has_execution = any(by_type.get(kind) for kind in EXECUTION_TYPES)
+    if has_execution:
+        if len(by_type.get("execution_envelope", [])) != 1:
+            raise ImportContractError("execution evidence requires exactly one execution_envelope")
+        if len(by_type.get("execution_result", [])) != 1:
+            raise ImportContractError("execution evidence requires exactly one execution_result")
+        if not any(_decision_result(item) == "authorized" for item in by_type.get("runtime_decision", [])):
+            raise ImportContractError("execution evidence cannot be supplied when no runtime_decision authorized an effect")
     control_plane = {
         "run_id": bundle.get("run_id"),
         "decisions": by_type.get("runtime_decision", []),
@@ -287,14 +300,16 @@ def _retained_replay_inputs(bundle: dict[str, Any]) -> tuple[dict[str, Any], dic
         "observations": by_type.get("effect_observation", []),
         "reconciliations": by_type.get("reconciliation", []),
     }
-    proposal = by_type["runtime_proposal"][0]
-    moltbot = {
-        "execution_envelope": by_type["execution_envelope"][0],
-        "execution_result": by_type["execution_result"][0],
-        "attempts": by_type.get("destination_attempt", []),
-        "attempt_events": by_type.get("destination_attempt_event", []),
-        "effects": by_type.get("destination_effect", []),
-    }
+    proposal = by_type.get("runtime_proposal", [None])[0]
+    moltbot = None
+    if has_execution:
+        moltbot = {
+            "execution_envelope": by_type["execution_envelope"][0],
+            "execution_result": by_type["execution_result"][0],
+            "attempts": by_type.get("destination_attempt", []),
+            "attempt_events": by_type.get("destination_attempt_event", []),
+            "effects": by_type.get("destination_effect", []),
+        }
     return control_plane, proposal, moltbot
 
 
@@ -312,26 +327,56 @@ def _run_pinned_replay_validator(bundle: dict[str, Any]) -> str:
     except Exception as exc:
         raise ImportContractError(f"pinned Replay semantic validation failed unexpectedly: {exc}") from exc
     status = getattr(reconstructed, "status", None)
-    if status != "reconstruction_complete":
+    if status not in {"reconstruction_complete", "reconstruction_partial"}:
         raise ImportContractError(f"pinned Replay semantic validation returned status {status!r}")
-    return "executed"
+    if moltbot is None:
+        return "recorded_no_execution"
+    return "executed" if status == "reconstruction_complete" else "executed_with_unresolved_evidence"
 
 
 def _check_commitments(bundle: dict[str, Any], manifest: dict[str, Any]) -> None:
     grouped = _group(bundle)
-    proposal = grouped["runtime_proposal"][0][2]
-    decision = grouped["runtime_decision"][0][2]
+    proposals = grouped.get("runtime_proposal", [])
+    proposal = proposals[0][2] if proposals else None
+    if proposal is not None:
+        if proposal.get("manifest_id") != _manifest_id(manifest):
+            raise ImportContractError("proposal.manifest_id does not match supplied Manifest")
+        if str(proposal.get("manifest_version")) != _manifest_version(manifest):
+            raise ImportContractError("proposal.manifest_version does not match supplied Manifest")
+        if proposal.get("manifest_digest") != sha256(manifest):
+            raise ImportContractError("proposal.manifest_digest does not match supplied Manifest digest")
+        if proposal.get("payload_commitment") != sha256(proposal.get("payload")):
+            raise ImportContractError("proposal.payload_commitment does not match proposal.payload")
+
+    authorized: list[dict[str, Any]] = []
+    effects: set[str] = set()
+    decisions: set[str] = set()
+    for index, record, data in grouped.get("runtime_decision", []):
+        decision_id = _identifier(record, data, "decision_id") or f"decision@{index}"
+        decisions.add(decision_id)
+        result = _decision_result(data)
+        bind = _binding(data)
+        if result == "authorized":
+            if bind is None:
+                raise ImportContractError(f"decision {decision_id} is authorized but has no binding")
+            authorized.append(data)
+            effect_id = _identifier(record, data, "effect_id")
+            if effect_id:
+                effects.add(effect_id)
+        elif bind is not None:
+            raise ImportContractError(f"decision {decision_id} result {result!r} cannot carry an authorization/effect binding")
+
+    has_execution = any(grouped.get(kind) for kind in EXECUTION_TYPES)
+    if has_execution and not authorized:
+        raise ImportContractError("execution evidence supplied without an authorized decision")
+    if not has_execution:
+        return
+    if proposal is None:
+        raise ImportContractError("execution evidence requires retained runtime_proposal")
+    decision = authorized[0]
     bind = _binding(decision)
     if bind is None:
         raise ImportContractError("authorized runtime_decision must include binding")
-    if proposal.get("manifest_id") != _manifest_id(manifest):
-        raise ImportContractError("proposal.manifest_id does not match supplied Manifest")
-    if str(proposal.get("manifest_version")) != _manifest_version(manifest):
-        raise ImportContractError("proposal.manifest_version does not match supplied Manifest")
-    if proposal.get("manifest_digest") != sha256(manifest):
-        raise ImportContractError("proposal.manifest_digest does not match supplied Manifest digest")
-    if proposal.get("payload_commitment") != sha256(proposal.get("payload")):
-        raise ImportContractError("proposal.payload_commitment does not match proposal.payload")
     for field in ("proposal_commitment", "manifest_id", "manifest_version", "manifest_digest", "actor", "principal", "action_id", "adapter_id", "target", "payload_commitment", "requested_permissions", "amount", "unit", "effects", "grant_id", "grant_revision"):
         if field not in bind:
             raise ImportContractError(f"runtime_decision.binding.{field} is required")
@@ -351,20 +396,24 @@ def _check_commitments(bundle: dict[str, Any], manifest: dict[str, Any]) -> None
     for field in ("actor", "principal", "manifest_id", "manifest_version", "manifest_digest", "action_id", "adapter_id", "target", "payload", "payload_commitment", "requested_permissions", "amount", "unit", "effects", "requirement_id"):
         _same(proposal.get(field), operation.get(field), f"execution_envelope.operation.{field}")
     operation_digest = sha256(operation)
-    attempts = {item[2].get("attempt_id") for item in grouped.get("destination_attempt", [])}
-    attempts |= {_identifier(record, data, "attempt_id") for _, record, data in grouped.get("destination_attempt", [])}
-    attempts.discard(None)
+    destination_attempts = {item[2].get("attempt_id") for item in grouped.get("destination_attempt", [])}
+    destination_attempts |= {_identifier(record, data, "attempt_id") for _, record, data in grouped.get("destination_attempt", [])}
+    destination_attempts.discard(None)
+    cp_attempts = {_identifier(record, data, "attempt_id") for _, record, data in grouped.get("control_plane_attempt_transition", [])}
+    cp_attempts.discard(None)
     result = grouped["execution_result"][0][2]
-    if result.get("attempt_id") not in attempts:
-        raise ImportContractError("execution_result.attempt_id does not reference a retained destination_attempt")
-    if result.get("effect_id") != decision.get("effect_id"):
-        raise ImportContractError("execution_result.effect_id does not match decision effect_id")
-    effects = grouped.get("destination_effect", [])
-    if not effects:
-        raise ImportContractError("reconstruction bundle must retain at least one destination_effect")
-    for _, _, destination in effects:
-        if destination.get("effect_id") != decision.get("effect_id"):
-            raise ImportContractError("destination_effect.effect_id does not match decision effect_id")
+    result_attempt_id = result.get("attempt_id")
+    if result_attempt_id is not None:
+        if result_attempt_id not in destination_attempts and result_attempt_id not in cp_attempts:
+            raise ImportContractError("execution_result.attempt_id does not reference a retained destination_attempt or Control Plane attempt")
+        if result_attempt_id in cp_attempts and result_attempt_id not in destination_attempts:
+            if result.get("status") not in {"reconciled", "partial", "unknown"} or result.get("newly_executed") is not False:
+                raise ImportContractError("Control Plane attempt namespace is valid only for non-new reconciliation results")
+    if result.get("effect_id") not in effects:
+        raise ImportContractError("execution_result.effect_id does not match an authorized decision effect_id")
+    for _, _, destination in grouped.get("destination_effect", []):
+        if destination.get("effect_id") not in effects:
+            raise ImportContractError("destination_effect.effect_id does not match an authorized decision effect_id")
         if destination.get("operation_digest") != operation_digest:
             raise ImportContractError("destination_effect.operation_digest does not match execution_envelope.operation")
         if destination.get("target") != operation.get("target"):
@@ -381,9 +430,21 @@ def _check_commitments(bundle: dict[str, Any], manifest: dict[str, Any]) -> None
             if payload != operation.get("payload"):
                 raise ImportContractError("destination_effect.payload_json does not match execution_envelope.operation.payload")
     checked = {item.get("label") for item in bundle.get("commitments", []) if isinstance(item, dict) and item.get("verification_status") == "checked_match"}
-    required_checked = {"payload_commitment", "effect_id", "operation_digest"}
+    required_checked = {"payload_commitment"}
+    if grouped.get("destination_effect"):
+        required_checked |= {"effect_id", "operation_digest"}
     if not required_checked <= checked:
         raise ImportContractError(f"required checked commitments missing: {sorted(required_checked - checked)}")
+
+
+def _authorization_summary(counter: Counter[str]) -> str:
+    meaningful = {key: value for key, value in counter.items() if value and key in {"authorized", "hold", "deny", "unknown"}}
+    if not meaningful:
+        return "unknown"
+    if len(meaningful) == 1:
+        key = next(iter(meaningful))
+        return "held" if key == "hold" else "denied" if key == "deny" else key
+    return "unresolved"
 
 
 def _semantic(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], Counter[str], str]:
@@ -399,11 +460,6 @@ def _semantic(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple[list[di
         decisions.add(decision_id)
         result = _decision_result(data)
         auth[result] += 1
-        bind = _binding(data)
-        if result != "authorized" and bind:
-            raise ImportContractError(f"decision {decision_id} result {result!r} cannot carry an authorization/effect binding")
-        if result == "authorized" and not bind:
-            raise ImportContractError(f"decision {decision_id} is authorized but has no binding")
         effect_id = _identifier(record, data, "effect_id")
         if effect_id:
             effects.add(effect_id)
@@ -411,7 +467,7 @@ def _semantic(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple[list[di
         for index, record, data in grouped.get(record_type, []):
             effect_id = _identifier(record, data, "effect_id")
             decision_id = _identifier(record, data, "decision_id")
-            if effect_id and effect_id not in effects:
+            if effect_id and effects and effect_id not in effects:
                 raise ImportContractError(f"{record_type} {index} has dangling effect_id {effect_id}")
             if decision_id and decision_id not in decisions:
                 raise ImportContractError(f"{record_type} {index} has dangling decision_id {decision_id}")
@@ -447,18 +503,41 @@ def _combined_state(counter: Counter[str]) -> str:
         return "partial"
     if counter.get("absent"):
         return "absent"
-    if counter.get("unknown") or counter.get("unavailable"):
+    if counter.get("unknown") and not counter.get("applied"):
         return "unknown"
     if counter.get("applied"):
-        return "applied"
+        return "applied_with_unknown" if counter.get("unknown") else "applied"
+    if counter.get("unavailable"):
+        return "unavailable"
     return "unknown"
 
 
-def _state_counts(bundle: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+def _ack_transition_state(data: dict[str, Any]) -> str | None:
+    status = str(data.get("status") or "unknown").lower()
+    ack = data.get("acknowledgement")
+    if isinstance(ack, dict) and ack:
+        return "received"
+    if status == "acknowledged":
+        return "unresolved"
+    if status in {"unknown", "failed", "lost", "timeout"}:
+        return "unknown"
+    return None
+
+
+def _ack_result_state(data: dict[str, Any]) -> str | None:
+    if data.get("acknowledged") is True:
+        return "received"
+    if data.get("acknowledged") is False or str(data.get("status") or "").lower() in {"unknown", "timeout", "lost"}:
+        return "unknown"
+    return None
+
+
+def _state_counts(bundle: dict[str, Any], auth: Counter[str]) -> tuple[dict[str, Any], dict[str, Any]]:
     grouped = _group(bundle)
     proposals: set[str] = set(); decisions: set[str] = set(); effects: set[str] = set(); control_attempts: set[str] = set(); executor_attempts: set[str] = set()
     transition_records = 0
     control_statuses: Counter[str] = Counter(); acknowledgement: Counter[str] = Counter(); observations: Counter[str] = Counter(); destination_effect_states: Counter[str] = Counter(); effect_observation_states: Counter[str] = Counter(); reconciliation_states: Counter[str] = Counter(); execution_result_states: Counter[str] = Counter()
+    ack_sources: list[dict[str, Any]] = []
     for record_type, entries in grouped.items():
         for index, record, data in entries:
             if record_type == "runtime_proposal":
@@ -469,13 +548,18 @@ def _state_counts(bundle: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any
             elif record_type in {"control_plane_attempt", "control_plane_attempt_transition"}:
                 attempt_id = _identifier(record, data, "attempt_id") or _record_id(record, index); control_attempts.add("control:" + attempt_id); transition_records += 1
                 status = str(data.get("status") or "unknown").lower(); control_statuses[status] += 1
-                acknowledgement["unknown"] += 1
+                ack_state = _ack_transition_state(data)
+                if ack_state:
+                    acknowledgement[f"control_plane_{ack_state}"] += 1; ack_sources.append({"record_id": _record_id(record, index), "source": "control_plane_transition", "state": ack_state, "status": status, "attempt_id": data.get("attempt_id")})
             elif record_type == "destination_attempt":
                 attempt_id = _identifier(record, data, "attempt_id", "destination_attempt_id") or _record_id(record, index); executor_attempts.add("destination:" + attempt_id)
             elif record_type == "destination_attempt_event":
                 transition_records += 1
             elif record_type == "execution_result":
-                execution_result_states[_state_from_value(data.get("status") or data.get("observed_state"))] += 1
+                state = _state_from_value(data.get("status") or data.get("observed_state")); execution_result_states[state] += 1
+                ack_state = _ack_result_state(data)
+                if ack_state:
+                    acknowledgement[f"execution_result_{ack_state}"] += 1; ack_sources.append({"record_id": _record_id(record, index), "source": "execution_result", "state": ack_state, "status": data.get("status"), "attempt_id": data.get("attempt_id")})
             elif record_type == "effect_observation":
                 state = _observation_state(data); effect_observation_states[state] += 1; observations[state] += 1
             elif record_type == "destination_effect":
@@ -483,9 +567,11 @@ def _state_counts(bundle: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any
             elif record_type == "reconciliation":
                 state = _observation_state(data); reconciliation_states[state] += 1; observations[state] += 1
     if not observations: observations["unavailable"] = 1
-    if not acknowledgement: acknowledgement["unknown"] = 1
-    counts = {"proposal_count": len(proposals), "decision_count": len(decisions), "distinct_effect_count": len(effects), "control_plane_attempt_count": len(control_attempts), "executor_attempt_count": len(executor_attempts), "attempt_transition_record_count": transition_records, "destination_effect_count": sum(destination_effect_states.values()), "effect_observation_count": sum(effect_observation_states.values()), "reconciliation_count": sum(reconciliation_states.values()), "destination_observation_counts": dict(sorted(observations.items())), "destination_effect_state_counts": dict(sorted(destination_effect_states.items())), "effect_observation_state_counts": dict(sorted(effect_observation_states.items())), "reconciliation_state_counts": dict(sorted(reconciliation_states.items())), "execution_result_state_counts": dict(sorted(execution_result_states.items())), "acknowledgement_counts": dict(sorted(acknowledgement.items())), "coverage_denominators": {"effect_denominator": "distinct authorized effect_id values", "control_plane_attempt_denominator": "unique Control Plane attempt IDs", "executor_attempt_denominator": "unique destination_attempt IDs", "destination_effect_denominator": "destination_effect records", "effect_observation_denominator": "effect_observation records", "reconciliation_denominator": "reconciliation records", "missing_observation": "unavailable, not zero/success/failure"}, "counting_rules": ["Repeated lifecycle records do not inflate attempt counts.", "Duplicate submissions do not inflate distinct effect counts when effect_id is unchanged.", "Control Plane and executor attempt IDs are separate namespaces unless explicit correlation exists.", "Destination effects, effect observations and reconciliations are counted separately.", "Missing observations are unavailable, not success or failure.", "Applied evidence does not override contradictory partial, unresolved, absent or unknown evidence."]}
-    lifecycle = {"authorization": "authorized", "execution_attempted": "yes" if control_attempts or executor_attempts else "no", "acknowledgement": "unknown" if acknowledgement.get("unknown") else "received", "control_plane_transition_statuses": dict(sorted(control_statuses.items())), "destination_observed": _combined_state(observations), "independent_verification": "unavailable", "notes": ["Control Plane transition status is preserved separately from acknowledgement receipt.", "A lost or unknown acknowledgement followed by an applied observation retains both facts.", "Reconstruction completeness does not mean effect completion.", "HMAC/shared-secret integrity is not public issuer identity or independent review.", "A software-generated pack cannot create human approval."]}
+    ack_summary = "received" if acknowledgement.get("control_plane_received") or acknowledgement.get("execution_result_received") else "unknown"
+    if acknowledgement.get("control_plane_unresolved"):
+        ack_summary = "unresolved"
+    counts = {"proposal_count": len(proposals), "decision_count": len(decisions), "distinct_effect_count": len(effects), "control_plane_attempt_count": len(control_attempts), "executor_attempt_count": len(executor_attempts), "attempt_transition_record_count": transition_records, "destination_effect_count": sum(destination_effect_states.values()), "effect_observation_count": sum(effect_observation_states.values()), "reconciliation_count": sum(reconciliation_states.values()), "destination_observation_counts": dict(sorted(observations.items())), "destination_effect_state_counts": dict(sorted(destination_effect_states.items())), "effect_observation_state_counts": dict(sorted(effect_observation_states.items())), "reconciliation_state_counts": dict(sorted(reconciliation_states.items())), "execution_result_state_counts": dict(sorted(execution_result_states.items())), "acknowledgement_counts": dict(sorted(acknowledgement.items())), "acknowledgement_sources": ack_sources, "coverage_denominators": {"effect_denominator": "distinct authorized effect_id values", "control_plane_attempt_denominator": "unique Control Plane attempt IDs", "executor_attempt_denominator": "unique destination_attempt IDs", "destination_effect_denominator": "destination_effect records", "effect_observation_denominator": "effect_observation records", "reconciliation_denominator": "reconciliation records", "missing_observation": "unavailable, not zero/success/failure"}, "counting_rules": ["Repeated lifecycle records do not inflate attempt counts.", "Duplicate submissions do not inflate distinct effect counts when effect_id is unchanged.", "Control Plane and executor attempt IDs are separate namespaces unless explicit correlation exists.", "Destination effects, effect observations and reconciliations are counted separately.", "Missing observations are unavailable, not success or failure.", "Applied evidence does not override contradictory partial, unresolved, absent or unknown evidence."]}
+    lifecycle = {"authorization": _authorization_summary(auth), "execution_attempted": "yes" if control_attempts or executor_attempts else "no", "acknowledgement": ack_summary, "acknowledgement_sources": ack_sources, "control_plane_transition_statuses": dict(sorted(control_statuses.items())), "destination_observed": _combined_state(observations), "independent_verification": "unavailable", "notes": ["Control Plane transition status is preserved separately from acknowledgement receipt.", "Executor acknowledgement is distinct from independently verified delivery.", "A lost or unknown acknowledgement followed by an applied observation retains both facts.", "Reconstruction completeness does not mean effect completion.", "HMAC/shared-secret integrity is not public issuer identity or independent review.", "A software-generated pack cannot create human approval."]}
     return counts, lifecycle
 
 
@@ -493,7 +579,33 @@ def _source_record_refs(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     return [{"record_id": _record_id(record, index), "record_type": _record_type(record), "producer_profile_id": record.get("producer_profile_id"), "source_path": record.get("source_path") or f"records[{index}]", "hash": sha256(record)} for index, record in enumerate(bundle.get("records", [])) if isinstance(record, dict)]
 
 
+def _replay_findings(bundle: dict[str, Any]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    for report_index, report in enumerate(bundle.get("import_reports", []) if isinstance(bundle.get("import_reports"), list) else []):
+        if not isinstance(report, dict):
+            continue
+        if report.get("complete") is False:
+            findings.append({"code": "REPLAY_REPORT_INCOMPLETE", "severity": "warning", "path": f"import_reports[{report_index}]", "message": f"Replay import report {report.get('adapter_profile', 'unknown')} is incomplete."})
+        for item in report.get("findings", []) if isinstance(report.get("findings"), list) else []:
+            if isinstance(item, dict):
+                findings.append({"code": "REPLAY_" + str(item.get("code", "FINDING")), "severity": item.get("severity", "warning"), "path": item.get("path", f"import_reports[{report_index}].findings"), "message": item.get("message", "Replay import finding."), "category": item.get("category"), "value_state": item.get("value_state")})
+    semantics = bundle.get("semantics") if isinstance(bundle.get("semantics"), dict) else {}
+    if semantics:
+        for key, expected in (("policy_reevaluation", False), ("model_reexecution", False), ("external_effect_execution", False), ("independent_effect_verification", False)):
+            if semantics.get(key) is not expected:
+                findings.append({"code": "REPLAY_SEMANTIC_UNEXPECTED", "severity": "warning", "path": f"semantics.{key}", "message": f"Replay semantic flag {key} was {semantics.get(key)!r}."})
+        notes = semantics.get("notes")
+        if notes:
+            findings.append({"code": "REPLAY_SEMANTIC_LIMITATION", "severity": "info", "path": "semantics.notes", "message": str(notes)})
+    return findings
+
+
 def _redaction_status(bundle: dict[str, Any], findings: list[dict[str, Any]]) -> tuple[bool, str]:
+    if bundle.get("status") == "redacted":
+        return True, "source_status_redacted"
+    derivation = bundle.get("derivation") if isinstance(bundle.get("derivation"), dict) else None
+    if derivation and derivation.get("relationship") == "redacted_derivative":
+        return True, "source_derivation_redacted_derivative"
     metadata = bundle.get("metadata") if isinstance(bundle.get("metadata"), dict) else {}
     redaction = bundle.get("redaction") or metadata.get("redaction") or metadata.get("redaction_state")
     if isinstance(redaction, dict):
@@ -501,21 +613,22 @@ def _redaction_status(bundle: dict[str, Any], findings: list[dict[str, Any]]) ->
         if redaction.get("redacted") is False or redaction.get("state") == "unredacted": return False, "source_declared_unredacted"
     if redaction in (True, "redacted"): return True, "source_declared_redacted"
     if redaction in (False, "unredacted", "not_redacted"): return False, "source_declared_unredacted"
-    findings.append({"code": "R_REDACTION_STATE_UNKNOWN", "severity": "warning", "path": "reconstruction_bundle.metadata.redaction", "message": "Source did not declare redaction state; EvidencePack boolean defaults to false for schema compatibility."})
+    findings.append({"code": "R_REDACTION_STATE_UNKNOWN", "severity": "warning", "path": "reconstruction_bundle.derivation|metadata.redaction", "message": "Source did not declare redaction state; EvidencePack boolean defaults to false for schema compatibility."})
     return False, "unknown_schema_default_false"
 
 
 def import_manifest_reconstruction(manifest: dict[str, Any], reconstruction_bundle: dict[str, Any], *, title: str | None = None, generated_at: str | None = None) -> EvidencePack:
     manifest = deepcopy(_obj(manifest, "manifest")); bundle = deepcopy(_obj(reconstruction_bundle, "reconstruction_bundle"))
     actions, findings, auth, replay_validator_status = _semantic(manifest, bundle)
-    action_items = _make_actions(actions, findings); tool_items = _make_tools(manifest); counts, lifecycle = _state_counts(bundle)
+    findings.extend(_replay_findings(bundle))
+    action_items = _make_actions(actions, findings); tool_items = _make_tools(manifest); counts, lifecycle = _state_counts(bundle, auth)
     generated = bundle.get("generated_at") or (bundle.get("metadata", {}) if isinstance(bundle.get("metadata"), dict) else {}).get("source_generated_at") or generated_at or "unavailable"
     if generated == "unavailable": findings.append({"code": "T_GENERATED_AT_UNAVAILABLE", "severity": "warning", "path": "reconstruction_bundle.generated_at", "message": "No source generation timestamp supplied; importer did not invent one."})
     bundle_id = str(bundle.get("bundle_id") or bundle.get("reconstruction_bundle_id") or bundle.get("run_id") or "unknown_bundle")
     pack_id = "agep-" + sha256({"manifest": sha256(manifest), "bundle": sha256(bundle), "transformation": TRANSFORMATION_VERSION})[7:23]
     redacted, redaction_source = _redaction_status(bundle, findings)
     metadata = bundle.get("metadata") if isinstance(bundle.get("metadata"), dict) else {}
-    pack = EvidencePack(pack_id=pack_id, pack_version="0.2.0", title=title or "Traceable Agent Governance Evidence Pack", generated_at=str(generated), review_status=ReviewStatus.draft, agent_overview=AgentOverview(agent_name=str(manifest.get("agent_name") or (manifest.get("agent", {}) if isinstance(manifest.get("agent"), dict) else {}).get("name") or "ImportedAgent"), agent_description=manifest.get("agent_description") or (manifest.get("agent", {}) if isinstance(manifest.get("agent"), dict) else {}).get("description"), business_purpose=str(manifest.get("business_purpose") or manifest.get("purpose") or "Imported from Manifest and Reconstruction Bundle; business purpose unavailable."), owner=manifest.get("owner") if isinstance(manifest.get("owner"), str) else None, business_unit=manifest.get("business_unit") if isinstance(manifest.get("business_unit"), str) else None, lifecycle_stage=metadata.get("deployment_status") if isinstance(metadata, dict) else None), deployment_context=DeploymentContext(environment=DeploymentEnvironment.other, deployment_name=str(manifest.get("deployment_name") or manifest.get("environment") or "imported"), systems_touched=[str(tool.get("external_system") or tool.get("tool_name")) for tool in manifest.get("tools", []) if isinstance(tool, dict) and (tool.get("external_system") or tool.get("tool_name"))], data_domains=[], notes="Generated from retained producer artifacts; does not establish deployment approval or operational effectiveness."), tool_inventory=tool_items, action_inventory=action_items, authority_model=AuthorityModelSummary(summary="Authority evidence imported from retained runtime records. This is not a grant or approval.", authority_scopes=[], privileged_action_types=sorted({item.action_type for item in action_items if item.authority_required}, key=lambda value: value.value), expiration_required=True, human_approval_required=any(item.review_required for item in action_items), notes="Authority Context profile references remain distinct from context-instance identifiers."), policy_controls=[PolicyControlSummary(control_name="Manifest declaration", description="Actions and requirements imported from Manifest v1.1. Declaration alone does not establish implementation.", control_status=ControlStatus.planned, evidence_reference="metadata.traceable_import.input_artifacts[manifest]"), PolicyControlSummary(control_name="Review and approval declaration", description="Manifest review_requirement and approval-related declarations are preserved for review support; declaration alone does not create human approval.", control_status=ControlStatus.planned, evidence_reference="manifest.actions[*].review_requirement"), PolicyControlSummary(control_name="Pinned Replay semantic validation", description="Retained producer records were validated through the pinned Replay semantic validator.", control_status=ControlStatus.implemented, evidence_reference="metadata.traceable_import.replay_semantic_validation"), PolicyControlSummary(control_name="Independent operational verification", description="No independent real-world effect verification supplied.", control_status=ControlStatus.planned, evidence_reference="metadata.traceable_import.lifecycle_summary.independent_verification")], replay_bundles=[ReplayBundleInventoryItem(bundle_id=bundle_id, run_id=str(bundle.get("run_id") or ""), status=str(bundle.get("status") or "unknown"), generated_at=None if generated == "unavailable" else str(generated), signed=bool(bundle.get("signature") or bundle.get("signatures")), redacted=redacted, validation_status="semantically_valid", evidence_reference="metadata.traceable_import.source_record_refs")], validation_summary=ValidationSummary(valid_bundle_count=1, invalid_bundle_count=0, warning_count=len([finding for finding in findings if finding.get("severity") == "warning"]), error_count=0, summary="Source artifacts passed supported semantic import checks. This does not establish deployment approval, compliance, operational effectiveness, or independent audit."), metadata={"traceable_import": {"transformation_version": TRANSFORMATION_VERSION, "canonicalization_profile": CANONICALIZATION_PROFILE, "supported_revisions": {"manifest": MANIFEST_REVISION, "replay": REPLAY_REVISION, "control_plane": CONTROL_PLANE_REVISION, "moltbot_safe": MOLTBOT_SAFE_REVISION, "alvorada": ALVORADA_REVISION}, "replay_semantic_validation": {"validator": "agent_replay_bundle.importers.import_bounded_workflow", "required_revision": REPLAY_REVISION, "status": replay_validator_status}, "input_artifacts": [{"artifact_role": "manifest", "artifact_id": _manifest_id(manifest), "version": _manifest_version(manifest), "hash": sha256(manifest), "trusted_revision": MANIFEST_REVISION}, {"artifact_role": "reconstruction_bundle", "artifact_id": bundle_id, "version": _bundle_version(bundle), "hash": sha256(bundle), "trusted_revision": REPLAY_REVISION}], "source_record_refs": _source_record_refs(bundle), "derived_counts": counts | {"authorization_granted_count": auth.get("authorized", 0), "authorization_held_count": auth.get("hold", 0), "authorization_denied_count": auth.get("deny", 0)}, "lifecycle_summary": lifecycle, "control_evidence_levels": {"declared": {"status": "present", "evidence": ["manifest"]}, "implemented": {"status": "not_inferred_from_manifest", "evidence": []}, "tested": {"status": "unavailable", "evidence": []}, "tested_in_this_repository": {"status": "importer_tests_only", "evidence": ["tests/test_importer.py"]}, "operationally_observed": {"status": "unavailable", "evidence": []}, "independently_audited": {"status": "unavailable", "evidence": []}}, "redaction_state": {"redacted": redacted, "source": redaction_source}, "import_findings": findings, "manual_assessments": [], "unresolved_issues": [{"code": "U_INDEPENDENT_VERIFICATION_UNAVAILABLE", "severity": "warning", "message": "Destination observation is producer-retained unless independent verifier evidence is supplied."}, {"code": "U_OPERATIONAL_EFFECTIVENESS_NOT_MEASURED", "severity": "warning", "message": "Synthetic import success cannot support operational effectiveness or deployment approval."}], "outcomes_and_burden": {"unresolved_delivery": "see lifecycle_summary.destination_observed", "incidents": "unavailable_not_zero", "remedies": "unavailable", "measured_latency": "not_measured", "human_review_effort": "not_measured", "error_prevention": "not_measured", "error_correction": "not_measured", "comparison_baseline_reference": "unavailable"}}})
+    pack = EvidencePack(pack_id=pack_id, pack_version="0.2.0", title=title or "Traceable Agent Governance Evidence Pack", generated_at=str(generated), review_status=ReviewStatus.draft, agent_overview=AgentOverview(agent_name=str(manifest.get("agent_name") or (manifest.get("agent", {}) if isinstance(manifest.get("agent"), dict) else {}).get("name") or "ImportedAgent"), agent_description=manifest.get("agent_description") or (manifest.get("agent", {}) if isinstance(manifest.get("agent"), dict) else {}).get("description"), business_purpose=str(manifest.get("business_purpose") or manifest.get("purpose") or "Imported from Manifest and Reconstruction Bundle; business purpose unavailable."), owner=manifest.get("owner") if isinstance(manifest.get("owner"), str) else None, business_unit=manifest.get("business_unit") if isinstance(manifest.get("business_unit"), str) else None, lifecycle_stage=metadata.get("deployment_status") if isinstance(metadata, dict) else None), deployment_context=DeploymentContext(environment=DeploymentEnvironment.other, deployment_name=str(manifest.get("deployment_name") or manifest.get("environment") or "imported"), systems_touched=[str(tool.get("external_system") or tool.get("tool_name")) for tool in manifest.get("tools", []) if isinstance(tool, dict) and (tool.get("external_system") or tool.get("tool_name"))], data_domains=[], notes="Generated from retained producer artifacts; does not establish deployment approval or operational effectiveness."), tool_inventory=tool_items, action_inventory=action_items, authority_model=AuthorityModelSummary(summary="Authority evidence imported from retained runtime records. This is not a grant or approval.", authority_scopes=[], privileged_action_types=sorted({item.action_type for item in action_items if item.authority_required}, key=lambda value: value.value), expiration_required=True, human_approval_required=any(item.review_required for item in action_items), notes="Authority Context profile references remain distinct from context-instance identifiers."), policy_controls=[PolicyControlSummary(control_name="Manifest declaration", description="Actions and requirements imported from Manifest v1.1. Declaration alone does not establish implementation.", control_status=ControlStatus.planned, evidence_reference="metadata.traceable_import.input_artifacts[manifest]"), PolicyControlSummary(control_name="Review and approval declaration", description="Manifest review_requirement and approval-related declarations are preserved for review support; declaration alone does not create human approval.", control_status=ControlStatus.planned, evidence_reference="manifest.actions[*].review_requirement"), PolicyControlSummary(control_name="Pinned Replay semantic validation", description="Retained producer records were validated through the pinned Replay semantic validator.", control_status=ControlStatus.implemented, evidence_reference="metadata.traceable_import.replay_semantic_validation"), PolicyControlSummary(control_name="Independent operational verification", description="No independent real-world effect verification supplied.", control_status=ControlStatus.planned, evidence_reference="metadata.traceable_import.lifecycle_summary.independent_verification")], replay_bundles=[ReplayBundleInventoryItem(bundle_id=bundle_id, run_id=str(bundle.get("run_id") or ""), status=str(bundle.get("status") or "unknown"), generated_at=None if generated == "unavailable" else str(generated), signed=bool(bundle.get("signature") or bundle.get("signatures") or bundle.get("integrity")), redacted=redacted, validation_status="semantically_valid", evidence_reference="metadata.traceable_import.source_record_refs")], validation_summary=ValidationSummary(valid_bundle_count=1, invalid_bundle_count=0, warning_count=len([finding for finding in findings if finding.get("severity") == "warning"]), error_count=0, summary="Source artifacts passed supported semantic import checks. This does not establish deployment approval, compliance, operational effectiveness, or independent audit."), metadata={"traceable_import": {"transformation_version": TRANSFORMATION_VERSION, "canonicalization_profile": CANONICALIZATION_PROFILE, "supported_revisions": {"manifest": MANIFEST_REVISION, "replay": REPLAY_REVISION, "control_plane": CONTROL_PLANE_REVISION, "moltbot_safe": MOLTBOT_SAFE_REVISION, "alvorada": ALVORADA_REVISION}, "replay_semantic_validation": {"validator": "agent_replay_bundle.importers.import_bounded_workflow", "required_revision": REPLAY_REVISION, "status": replay_validator_status}, "replay_import_reports": bundle.get("import_reports", []), "replay_semantics": bundle.get("semantics", {}), "input_artifacts": [{"artifact_role": "manifest", "artifact_id": _manifest_id(manifest), "version": _manifest_version(manifest), "hash": sha256(manifest), "trusted_revision": MANIFEST_REVISION}, {"artifact_role": "reconstruction_bundle", "artifact_id": bundle_id, "version": _bundle_version(bundle), "hash": sha256(bundle), "trusted_revision": REPLAY_REVISION}], "source_record_refs": _source_record_refs(bundle), "derived_counts": counts | {"authorization_granted_count": auth.get("authorized", 0), "authorization_held_count": auth.get("hold", 0), "authorization_denied_count": auth.get("deny", 0)}, "lifecycle_summary": lifecycle, "control_evidence_levels": {"declared": {"status": "present", "evidence": ["manifest"]}, "implemented": {"status": "not_inferred_from_manifest", "evidence": []}, "tested": {"status": "unavailable", "evidence": []}, "tested_in_this_repository": {"status": "importer_tests_only", "evidence": ["tests/test_importer.py"]}, "operationally_observed": {"status": "unavailable", "evidence": []}, "independently_audited": {"status": "unavailable", "evidence": []}}, "redaction_state": {"redacted": redacted, "source": redaction_source, "derivation": bundle.get("derivation")}, "import_findings": findings, "manual_assessments": [], "unresolved_issues": [{"code": "U_INDEPENDENT_VERIFICATION_UNAVAILABLE", "severity": "warning", "message": "Destination observation is producer-retained unless independent verifier evidence is supplied."}, {"code": "U_OPERATIONAL_EFFECTIVENESS_NOT_MEASURED", "severity": "warning", "message": "Synthetic import success cannot support operational effectiveness or deployment approval."}], "outcomes_and_burden": {"unresolved_delivery": "see lifecycle_summary.destination_observed", "incidents": "unavailable_not_zero", "remedies": "unavailable", "measured_latency": "not_measured", "human_review_effort": "not_measured", "error_prevention": "not_measured", "error_correction": "not_measured", "comparison_baseline_reference": "unavailable"}}})
     return pack
 
 
