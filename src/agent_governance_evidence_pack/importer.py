@@ -24,7 +24,7 @@ from .models import (
     ValidationSummary,
 )
 
-TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.2.4"
+TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.2.5"
 CANONICALIZATION_PROFILE = "json-sort-keys-compact-utf8-no-nan"
 MANIFEST_REVISION = "46c950bed37fe3812000895430bc0312d29e37ce"
 REPLAY_REVISION = "f12648313cedc2cf06145d397fa56cdea18cc800"
@@ -630,32 +630,152 @@ def _producer_profile_summaries(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     return summaries
 
 
+def _source_commitments_by_record(bundle: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    by_record: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for commitment in bundle.get("commitments", []) if isinstance(bundle.get("commitments"), list) else []:
+        if not isinstance(commitment, dict) or not commitment.get("source_record_id"):
+            continue
+        by_record[str(commitment["source_record_id"])].append({
+            "label": commitment.get("label"),
+            "value": commitment.get("value"),
+            "algorithm": commitment.get("algorithm"),
+            "canonicalization_profile": commitment.get("canonicalization_profile"),
+            "verification_status": commitment.get("verification_status"),
+            "source_path": commitment.get("source_path"),
+            "notes": commitment.get("notes"),
+        })
+    return by_record
+
+
 def _source_record_refs(bundle: dict[str, Any]) -> list[dict[str, Any]]:
     profiles = _producer_profile_map(bundle)
+    commitments = _source_commitments_by_record(bundle)
     refs: list[dict[str, Any]] = []
     for index, record in enumerate(bundle.get("records", [])):
         if not isinstance(record, dict):
             continue
         profile_id = str(record.get("producer_profile_id") or "")
         profile_status = _producer_profile_status(profiles.get(profile_id))
+        record_id = _record_id(record, index)
+        local_commitment = sha256(record)
+        source_commitments = commitments.get(record_id, [])
+        primary_source_commitment = source_commitments[0] if source_commitments else {}
         refs.append({
-            "record_id": _record_id(record, index),
+            "record_id": record_id,
             "record_type": _record_type(record),
             "producer_profile_id": record.get("producer_profile_id"),
             "source_path": record.get("source_path") or f"records[{index}]",
             "evidence_class": record.get("evidence_class"),
+            "evidence_class_status": "source_assertion",
             "producer_repository": profile_status["repository"],
             "producer_revision": profile_status["revision"],
             "producer_format_version": profile_status["format_version"],
             "producer_revision_check": profile_status["revision_check"],
             "source_asserted_provenance": profile_status["provenance_status"],
             "independent_provenance_verification": profile_status["independent_provenance_verification"],
-            "source_content_commitment": record.get("content_commitment"),
-            "source_canonicalization_profile": record.get("canonicalization_profile"),
-            "local_content_commitment": sha256(record),
+            "source_commitments": source_commitments,
+            "source_content_commitment": primary_source_commitment.get("value"),
+            "source_canonicalization_profile": primary_source_commitment.get("canonicalization_profile"),
+            "source_commitment_verification_status": primary_source_commitment.get("verification_status"),
+            "local_content_commitment": local_commitment,
             "local_canonicalization_profile": CANONICALIZATION_PROFILE,
+            "local_commitment_verification_status": "computed_during_import",
+            "hash": local_commitment,
         })
     return refs
+
+
+def _evidence_levels(bundle: dict[str, Any], replay_validator_status: str) -> dict[str, Any]:
+    metadata = bundle.get("metadata") if isinstance(bundle.get("metadata"), dict) else {}
+    source_runtime: dict[str, Any]
+    fixture_provenance = metadata.get("fixture_provenance")
+    scenario = metadata.get("scenario")
+    if fixture_provenance:
+        source_runtime = {
+            "status": "source_asserted",
+            "evidence": ["reconstruction_bundle.metadata.fixture_provenance"],
+            "scope": scenario or "unspecified",
+            "assertion": fixture_provenance,
+            "meaning": "producer metadata asserts runtime or fixture provenance; importer does not independently establish how the source run was executed",
+        }
+    else:
+        source_runtime = {
+            "status": "unavailable",
+            "evidence": [],
+            "scope": "unavailable",
+            "meaning": "no source runtime or fixture provenance was supplied",
+        }
+
+    test_provenance = metadata.get("test_provenance")
+    attributable_test: dict[str, Any]
+    required = ("test_run_id", "producer", "scope", "result")
+    if isinstance(test_provenance, dict) and all(test_provenance.get(key) not in (None, "") for key in required):
+        attributable_test = {
+            "status": "attributable_source_asserted",
+            "evidence": ["reconstruction_bundle.metadata.test_provenance"],
+            "test_run_id": test_provenance.get("test_run_id"),
+            "producer": test_provenance.get("producer"),
+            "scope": test_provenance.get("scope"),
+            "result": test_provenance.get("result"),
+            "revision": test_provenance.get("revision"),
+            "meaning": "attributable source-supplied test-run evidence; the importer did not execute or independently verify that test run",
+        }
+        tested = {
+            "status": "attributable_test_evidence_present_scope_bounded",
+            "evidence": ["reconstruction_bundle.metadata.test_provenance"],
+            "scope": test_provenance.get("scope"),
+            "result": test_provenance.get("result"),
+            "meaning": "supports only the precise source-attributed test scope; does not establish production effectiveness",
+        }
+    else:
+        attributable_test = {
+            "status": "unavailable",
+            "evidence": [],
+            "scope": "unavailable",
+            "meaning": "no complete attributable test-run provenance was supplied",
+        }
+        tested = {
+            "status": "unavailable",
+            "evidence": [],
+            "scope": "unavailable",
+            "meaning": "semantic import validation and source runtime records do not by themselves establish that a test occurred",
+        }
+
+    return {
+        "semantic_validation_performed_during_import": {
+            "status": replay_validator_status,
+            "evidence": ["metadata.traceable_import.replay_semantic_validation"],
+            "meaning": "the importer executed the accepted Replay semantic validator; this is not a test-run or runtime-control-effectiveness claim",
+        },
+        "source_asserted_runtime_evidence": source_runtime,
+        "attributable_test_run_evidence": attributable_test,
+        "declared": {
+            "status": "present",
+            "evidence": ["manifest"],
+            "meaning": "control or requirement is declared only",
+        },
+        "implemented": {
+            "status": "not_established_by_import",
+            "evidence": [],
+            "meaning": "implementation requires producer-specific evidence; manifest declarations and import success do not suffice",
+        },
+        "tested": tested,
+        "tested_in_this_repository": {
+            "status": "not_evaluated_during_import",
+            "evidence": [],
+            "meaning": "this import does not execute or imply execution of the Evidence Pack repository test suite",
+        },
+        "operationally_observed": {
+            "status": "unavailable",
+            "evidence": [],
+            "meaning": "no production operational observation supplied",
+        },
+        "independently_audited": {
+            "status": "unavailable",
+            "evidence": [],
+            "meaning": "no independent audit or certification supplied",
+        },
+    }
 
 
 def _conversion_losses(bundle: dict[str, Any]) -> list[dict[str, Any]]:
@@ -730,7 +850,7 @@ def import_manifest_reconstruction(manifest: dict[str, Any], reconstruction_bund
     pack_id = "agep-" + sha256({"manifest": sha256(manifest), "bundle": sha256(bundle), "transformation": TRANSFORMATION_VERSION})[7:23]
     redacted, redaction_source = _redaction_status(bundle, findings)
     metadata = bundle.get("metadata") if isinstance(bundle.get("metadata"), dict) else {}
-    pack = EvidencePack(pack_id=pack_id, pack_version="0.2.0", title=title or "Traceable Agent Governance Evidence Pack", generated_at=str(generated), review_status=ReviewStatus.draft, agent_overview=AgentOverview(agent_name=str(manifest.get("agent_name") or (manifest.get("agent", {}) if isinstance(manifest.get("agent"), dict) else {}).get("name") or "ImportedAgent"), agent_description=manifest.get("agent_description") or (manifest.get("agent", {}) if isinstance(manifest.get("agent"), dict) else {}).get("description"), business_purpose=str(manifest.get("business_purpose") or manifest.get("purpose") or "Imported from Manifest and Reconstruction Bundle; business purpose unavailable."), owner=manifest.get("owner") if isinstance(manifest.get("owner"), str) else None, business_unit=manifest.get("business_unit") if isinstance(manifest.get("business_unit"), str) else None, lifecycle_stage=metadata.get("deployment_status") if isinstance(metadata, dict) else None), deployment_context=DeploymentContext(environment=DeploymentEnvironment.other, deployment_name=str(manifest.get("deployment_name") or manifest.get("environment") or "imported"), systems_touched=[str(tool.get("external_system") or tool.get("tool_name")) for tool in manifest.get("tools", []) if isinstance(tool, dict) and (tool.get("external_system") or tool.get("tool_name"))], data_domains=[], notes="Generated from retained producer artifacts; does not establish deployment approval or operational effectiveness."), tool_inventory=tool_items, action_inventory=action_items, authority_model=AuthorityModelSummary(summary="Authority evidence imported from retained runtime records. This is not a grant or approval.", authority_scopes=[], privileged_action_types=sorted({item.action_type for item in action_items if item.authority_required}, key=lambda value: value.value), expiration_required=True, human_approval_required=any(item.review_required for item in action_items), notes="Authority Context profile references remain distinct from context-instance identifiers."), policy_controls=[PolicyControlSummary(control_name="Manifest declaration", description="Actions and requirements imported from Manifest v1.1. Declaration alone does not establish implementation.", control_status=ControlStatus.planned, evidence_reference="metadata.traceable_import.input_artifacts[manifest]"), PolicyControlSummary(control_name="Review and approval declaration", description="Manifest review_requirement and approval-related declarations are preserved for review support; declaration alone does not create human approval.", control_status=ControlStatus.planned, evidence_reference="manifest.actions[*].review_requirement"), PolicyControlSummary(control_name="Replay semantic import validation", description="The importer executed the accepted Replay semantic validator over retained producer records. This is import-time evidence checking, not evidence that runtime controls were operationally effective.", control_status=ControlStatus.implemented, evidence_reference="metadata.traceable_import.replay_semantic_validation"), PolicyControlSummary(control_name="Independent operational verification", description="No independent real-world effect verification supplied.", control_status=ControlStatus.planned, evidence_reference="metadata.traceable_import.lifecycle_summary.independent_verification")], replay_bundles=[ReplayBundleInventoryItem(bundle_id=bundle_id, run_id=str(bundle.get("run_id") or ""), status=str(bundle.get("status") or "unknown"), generated_at=None if generated == "unavailable" else str(generated), signed=bool(bundle.get("signature") or bundle.get("signatures") or bundle.get("integrity")), redacted=redacted, validation_status="semantically_valid", evidence_reference="metadata.traceable_import.source_record_refs")], validation_summary=ValidationSummary(valid_bundle_count=1, invalid_bundle_count=0, warning_count=len([finding for finding in findings if finding.get("severity") == "warning"]), error_count=0, summary="Source artifacts passed supported semantic import checks. This does not establish deployment approval, compliance, operational effectiveness, or independent audit."), metadata={"traceable_import": {"transformation_version": TRANSFORMATION_VERSION, "canonicalization_profile": CANONICALIZATION_PROFILE, "supported_revisions": {"manifest": MANIFEST_REVISION, "replay": REPLAY_REVISION, "control_plane": CONTROL_PLANE_REVISION, "moltbot_safe": MOLTBOT_SAFE_REVISION, "odes": ODES_REVISION, "gax_imx_experimental_reference": GAX_IMX_REVISION, "alvorada": ALVORADA_REVISION}, "replay_semantic_validation": {"validator": "agent_replay_bundle.importers.import_bounded_workflow", "required_revision": REPLAY_REVISION, "status": replay_validator_status}, "replay_import_reports": bundle.get("import_reports", []), "replay_semantics": bundle.get("semantics", {}), "input_artifacts": [{"artifact_role": "manifest", "artifact_id": _manifest_id(manifest), "version": _manifest_version(manifest), "hash": sha256(manifest), "trusted_revision": MANIFEST_REVISION, "verification_status": "digest_and_cross_artifact_binding_checked_when_runtime_proposal_present", "commitment_source": "locally_computed", "canonicalization_profile": CANONICALIZATION_PROFILE}, {"artifact_role": "reconstruction_bundle", "artifact_id": bundle_id, "version": _bundle_version(bundle), "hash": sha256(bundle), "trusted_revision": REPLAY_REVISION, "verification_status": replay_validator_status, "commitment_source": "locally_computed", "canonicalization_profile": CANONICALIZATION_PROFILE}], "producer_profiles": _producer_profile_summaries(bundle), "source_record_refs": _source_record_refs(bundle), "conversion_losses": _conversion_losses(bundle), "derived_counts": counts | {"authorization_granted_count": auth.get("authorized", 0), "authorization_held_count": auth.get("hold", 0), "authorization_denied_count": auth.get("deny", 0)}, "lifecycle_summary": lifecycle, "control_evidence_levels": {"declared": {"status": "present", "evidence": ["manifest"], "meaning": "control or requirement is declared only"}, "implemented": {"status": "not_established_by_import", "evidence": [], "meaning": "implementation requires producer-specific evidence; manifest declarations do not suffice"}, "tested": {"status": "synthetic_runtime_evidence_present_but_scope_bounded", "evidence": ["reconstruction_bundle", "metadata.traceable_import.replay_semantic_validation"], "meaning": "accepted synthetic producer artifacts and import validation support only the bounded exercised path"}, "tested_in_this_repository": {"status": "importer_tests_only", "evidence": ["tests/test_importer.py"], "meaning": "tests establish importer behavior, not upstream control effectiveness"}, "operationally_observed": {"status": "unavailable", "evidence": [], "meaning": "no production operational observation supplied"}, "independently_audited": {"status": "unavailable", "evidence": [], "meaning": "no independent audit or certification supplied"}}, "redaction_state": {"redacted": redacted, "source": redaction_source, "derivation": bundle.get("derivation")}, "import_findings": findings, "manual_assessments": [], "unresolved_issues": [{"code": "U_INDEPENDENT_VERIFICATION_UNAVAILABLE", "severity": "warning", "message": "Destination observation is producer-retained unless independent verifier evidence is supplied."}, {"code": "U_OPERATIONAL_EFFECTIVENESS_NOT_MEASURED", "severity": "warning", "message": "Synthetic import success cannot support operational effectiveness or deployment approval."}, {"code": "U_HISTORICAL_AUTHORIZATION_NOT_CURRENT_PERMISSION", "severity": "info", "message": "Retained authorization is historical evidence only; current permission must be re-evaluated by the runtime authority/control boundary."}, {"code": "U_EXCHANGE_METADATA_SUPPLEMENTARY", "severity": "info", "message": "Accepted GAX/IMX exchange metadata remains supplementary unless represented by a supported Replay mapping; the Evidence Pack does not invent exchange fields."}], "outcomes_and_burden": {"unresolved_delivery": "see lifecycle_summary.destination_observed", "incidents": "unavailable_not_zero", "remedies": "unavailable", "measured_latency": "not_measured", "human_review_effort": "not_measured", "error_prevention": "not_measured", "error_correction": "not_measured", "comparison_baseline_reference": "unavailable"}}})
+    pack = EvidencePack(pack_id=pack_id, pack_version="0.2.0", title=title or "Traceable Agent Governance Evidence Pack", generated_at=str(generated), review_status=ReviewStatus.draft, agent_overview=AgentOverview(agent_name=str(manifest.get("agent_name") or (manifest.get("agent", {}) if isinstance(manifest.get("agent"), dict) else {}).get("name") or "ImportedAgent"), agent_description=manifest.get("agent_description") or (manifest.get("agent", {}) if isinstance(manifest.get("agent"), dict) else {}).get("description"), business_purpose=str(manifest.get("business_purpose") or manifest.get("purpose") or "Imported from Manifest and Reconstruction Bundle; business purpose unavailable."), owner=manifest.get("owner") if isinstance(manifest.get("owner"), str) else None, business_unit=manifest.get("business_unit") if isinstance(manifest.get("business_unit"), str) else None, lifecycle_stage=metadata.get("deployment_status") if isinstance(metadata, dict) else None), deployment_context=DeploymentContext(environment=DeploymentEnvironment.other, deployment_name=str(manifest.get("deployment_name") or manifest.get("environment") or "imported"), systems_touched=[str(tool.get("external_system") or tool.get("tool_name")) for tool in manifest.get("tools", []) if isinstance(tool, dict) and (tool.get("external_system") or tool.get("tool_name"))], data_domains=[], notes="Generated from retained producer artifacts; does not establish deployment approval or operational effectiveness."), tool_inventory=tool_items, action_inventory=action_items, authority_model=AuthorityModelSummary(summary="Authority evidence imported from retained runtime records. This is not a grant or approval.", authority_scopes=[], privileged_action_types=sorted({item.action_type for item in action_items if item.authority_required}, key=lambda value: value.value), expiration_required=True, human_approval_required=any(item.review_required for item in action_items), notes="Authority Context profile references remain distinct from context-instance identifiers."), policy_controls=[PolicyControlSummary(control_name="Manifest declaration", description="Actions and requirements imported from Manifest v1.1. Declaration alone does not establish implementation.", control_status=ControlStatus.planned, evidence_reference="metadata.traceable_import.input_artifacts[manifest]"), PolicyControlSummary(control_name="Review and approval declaration", description="Manifest review_requirement and approval-related declarations are preserved for review support; declaration alone does not create human approval.", control_status=ControlStatus.planned, evidence_reference="manifest.actions[*].review_requirement"), PolicyControlSummary(control_name="Replay semantic import validation", description="The importer executed the accepted Replay semantic validator over retained producer records. This is import-time evidence checking, not evidence that runtime controls were operationally effective.", control_status=ControlStatus.implemented, evidence_reference="metadata.traceable_import.replay_semantic_validation"), PolicyControlSummary(control_name="Independent operational verification", description="No independent real-world effect verification supplied.", control_status=ControlStatus.planned, evidence_reference="metadata.traceable_import.lifecycle_summary.independent_verification")], replay_bundles=[ReplayBundleInventoryItem(bundle_id=bundle_id, run_id=str(bundle.get("run_id") or ""), status=str(bundle.get("status") or "unknown"), generated_at=None if generated == "unavailable" else str(generated), signed=bool(bundle.get("signature") or bundle.get("signatures") or bundle.get("integrity")), redacted=redacted, validation_status="semantically_valid", evidence_reference="metadata.traceable_import.source_record_refs")], validation_summary=ValidationSummary(valid_bundle_count=1, invalid_bundle_count=0, warning_count=len([finding for finding in findings if finding.get("severity") == "warning"]), error_count=0, summary="Source artifacts passed supported semantic import checks. This does not establish deployment approval, compliance, operational effectiveness, or independent audit."), metadata={"traceable_import": {"transformation_version": TRANSFORMATION_VERSION, "canonicalization_profile": CANONICALIZATION_PROFILE, "supported_revisions": {"manifest": MANIFEST_REVISION, "replay": REPLAY_REVISION, "control_plane": CONTROL_PLANE_REVISION, "moltbot_safe": MOLTBOT_SAFE_REVISION, "odes": ODES_REVISION, "gax_imx_experimental_reference": GAX_IMX_REVISION, "alvorada": ALVORADA_REVISION}, "replay_semantic_validation": {"validator": "agent_replay_bundle.importers.import_bounded_workflow", "required_revision": REPLAY_REVISION, "status": replay_validator_status}, "replay_import_reports": bundle.get("import_reports", []), "replay_semantics": bundle.get("semantics", {}), "input_artifacts": [{"artifact_role": "manifest", "artifact_id": _manifest_id(manifest), "version": _manifest_version(manifest), "hash": sha256(manifest), "trusted_revision": MANIFEST_REVISION, "verification_status": "digest_and_cross_artifact_binding_checked_when_runtime_proposal_present", "commitment_source": "locally_computed", "canonicalization_profile": CANONICALIZATION_PROFILE}, {"artifact_role": "reconstruction_bundle", "artifact_id": bundle_id, "version": _bundle_version(bundle), "hash": sha256(bundle), "trusted_revision": REPLAY_REVISION, "verification_status": replay_validator_status, "commitment_source": "locally_computed", "canonicalization_profile": CANONICALIZATION_PROFILE}], "producer_profiles": _producer_profile_summaries(bundle), "source_record_refs": _source_record_refs(bundle), "conversion_losses": _conversion_losses(bundle), "derived_counts": counts | {"authorization_granted_count": auth.get("authorized", 0), "authorization_held_count": auth.get("hold", 0), "authorization_denied_count": auth.get("deny", 0)}, "lifecycle_summary": lifecycle, "control_evidence_levels": _evidence_levels(bundle, replay_validator_status), "redaction_state": {"redacted": redacted, "source": redaction_source, "derivation": bundle.get("derivation")}, "import_findings": findings, "manual_assessments": [], "unresolved_issues": [{"code": "U_INDEPENDENT_VERIFICATION_UNAVAILABLE", "severity": "warning", "message": "Destination observation is producer-retained unless independent verifier evidence is supplied."}, {"code": "U_OPERATIONAL_EFFECTIVENESS_NOT_MEASURED", "severity": "warning", "message": "Synthetic import success cannot support operational effectiveness or deployment approval."}, {"code": "U_HISTORICAL_AUTHORIZATION_NOT_CURRENT_PERMISSION", "severity": "info", "message": "Retained authorization is historical evidence only; current permission must be re-evaluated by the runtime authority/control boundary."}, {"code": "U_EXCHANGE_METADATA_SUPPLEMENTARY", "severity": "info", "message": "Accepted GAX/IMX exchange metadata remains supplementary unless represented by a supported Replay mapping; the Evidence Pack does not invent exchange fields."}], "outcomes_and_burden": {"unresolved_delivery": "see lifecycle_summary.destination_observed", "incidents": "unavailable_not_zero", "remedies": "unavailable", "measured_latency": "not_measured", "human_review_effort": "not_measured", "error_prevention": "not_measured", "error_correction": "not_measured", "comparison_baseline_reference": "unavailable"}}})
     return pack
 
 
