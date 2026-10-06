@@ -221,6 +221,55 @@ def test_missing_test_provenance_keeps_tested_unavailable_for_held_decision():
     assert levels["tested_in_this_repository"]["status"] == "not_evaluated_during_import"
 
 
+@pytest.mark.parametrize("malformed", [{}, [], False, "   "])
+def test_malformed_test_provenance_values_leave_tested_unavailable_with_finding(malformed):
+    bundle = _strip_execution(_success_bundle(), "hold")
+    bundle["metadata"]["test_provenance"] = {
+        "test_run_id": malformed,
+        "producer": malformed,
+        "scope": malformed,
+        "result": malformed,
+    }
+    pack = import_manifest_reconstruction(_manifest(), bundle)
+    trace = pack.metadata["traceable_import"]
+    levels = trace["control_evidence_levels"]
+    assert levels["attributable_test_run_evidence"]["status"] == "unavailable"
+    assert levels["tested"]["status"] == "unavailable"
+    finding = next(item for item in trace["import_findings"] if item["code"] == "T_TEST_PROVENANCE_INVALID")
+    assert finding["path"] == "reconstruction_bundle.metadata.test_provenance"
+    assert set(finding["invalid_fields"]) == {"test_run_id", "producer", "scope", "result"}
+
+
+def test_failed_attributed_test_result_is_preserved_and_rendered_as_source_assertion():
+    bundle = _strip_execution(_success_bundle(), "hold")
+    bundle["metadata"]["test_provenance"] = {
+        "test_run_id": "neg-hold-failed-002",
+        "producer": "cognous-agent-control-plane integration harness",
+        "revision": "283500652d47a692fb0b99a1172a6d5faffbd9a7",
+        "scope": "revoked authority before execution -> held decision, no external effect",
+        "result": "failed",
+    }
+    pack = import_manifest_reconstruction(_manifest(), bundle)
+    levels = pack.metadata["traceable_import"]["control_evidence_levels"]
+    attributed = levels["attributable_test_run_evidence"]
+    assert attributed["status"] == "attributable_source_asserted"
+    assert attributed["test_run_id"] == "neg-hold-failed-002"
+    assert attributed["producer"] == "cognous-agent-control-plane integration harness"
+    assert attributed["scope"] == "revoked authority before execution -> held decision, no external effect"
+    assert attributed["result"] == "failed"
+    assert levels["tested"]["status"] == "attributable_test_evidence_present_scope_bounded"
+    assert levels["tested"]["result"] == "failed"
+
+    out = render_traceable_markdown(pack)
+    assert "### Attributed test-run evidence (source assertion)" in out
+    assert "neg-hold-failed-002" in out
+    assert "cognous-agent-control-plane integration harness" in out
+    assert "revoked authority before execution -&gt; held decision, no external effect" in out
+    assert "| result | failed |" in out
+    assert "| attribution_status | attributable_source_asserted |" in out
+    assert "source-supplied" in out
+
+
 def test_attributed_negative_test_evidence_has_precise_scope_without_implying_repo_tests():
     bundle = _strip_execution(_success_bundle(), "hold")
     bundle["metadata"]["test_provenance"] = {
