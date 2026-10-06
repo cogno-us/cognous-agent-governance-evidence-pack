@@ -53,6 +53,8 @@ def render_markdown(pack: EvidencePack) -> str:
         parts.append("No validation summary recorded.")
     parts.append("")
     parts.append(f"**{summary['open_risk_count']}** open risk(s) ({summary['critical_open_risk_count']} critical)." if summary['open_risk_count'] else "No open risks recorded. Absence of incident records does not prove absence of incidents.")
+    if pack.review_status.value == "approved_with_conditions" and any(record.notes and record.notes.strip() for record in pack.review_records):
+        parts.append("This evidence pack is approved with conditions; see Section 14 for review notes.")
     parts.append("")
 
     def kv(title: str, pairs: list[tuple[str, object]]) -> None:

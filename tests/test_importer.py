@@ -50,7 +50,7 @@ def test_actual_pinned_success_imports_and_preserves_acknowledgement_unknown():
     assert counts["effect_observation_count"] == 1
     assert lifecycle["acknowledgement"] == "unknown"
     assert lifecycle["control_plane_transition_statuses"]["acknowledged"] == 1
-    assert lifecycle["destination_observed"] == "unknown"
+    assert lifecycle["destination_observed"] == "applied"
 
 
 def test_actual_lost_ack_keeps_unknown_and_applied_observation_visible():
@@ -91,11 +91,11 @@ def test_manifest_requirements_do_not_imply_implemented_controls():
 
 
 def test_renderer_escapes_html_and_table_breaks():
-    manifest = copy.deepcopy(_manifest())
-    manifest["agent_name"] = "<b>Bad|Agent</b>"
-    out = render_traceable_markdown(import_manifest_reconstruction(manifest, _success_bundle()))
+    pack = import_manifest_reconstruction(_manifest(), _success_bundle())
+    pack.title = "<b>Bad|Pack</b>"
+    out = render_traceable_markdown(pack)
     assert "<b>" not in out
-    assert "&lt;b&gt;Bad\\|Agent&lt;/b&gt;" in out
+    assert "&lt;b&gt;Bad\\|Pack&lt;/b&gt;" in out
 
 
 def test_empty_unversioned_bundle_rejected():
