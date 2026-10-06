@@ -159,7 +159,7 @@ def test_versioned_executor_profile_passes_traceable_import_without_claiming_ind
     moltbot = profiles["cogno-us/moltbot-safe"]
     assert moltbot["revision"] == "a4df7a925ca1b820b9958c479ce28616547cc6d0"
     assert moltbot["format_version"] == "1.0.0"
-    assert moltbot["independent_provenance_verification"] == "unavailable"
+    assert moltbot["independent_provenance_verification"] == "not_performed"
 
 
 def test_versioned_executor_profile_rejects_contradictory_revision():
