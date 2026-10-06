@@ -258,8 +258,8 @@ Copyright 2026 Cognous.
 
 ## Accepted producer compatibility
 
-The bounded traceable path is tested against pinned accepted producer contracts rather than local schema approximations. The current accepted pins are Manifest `46c950b`, Control Plane `2835006`, Moltbot Safe `1d308fa`, Replay `f63ce91`, and ODES `cba83a1`. The GAX/IMX experimental reference `9ad3781` remains provisional for bounded compatibility testing and is not promoted to an accepted stack dependency by this release.
+The bounded traceable path is tested against pinned accepted producer contracts rather than local schema approximations. The current accepted pins are Manifest `46c950b`, Control Plane `2835006`, Moltbot Safe `1d308fa`, Replay `f63ce91`, and ODES `cba83a1`. The GAX/IMX reference `9ad3781` remains a provisional experimental dependency for bounded compatibility testing and is not promoted to an accepted stack dependency by this release.
 
-GAX/IMX compatibility is demonstrated only by consuming the Reconstruction Bundle emitted by that accepted reference through the established Replay contract. Exchange metadata is supplementary review evidence unless a supported mapping exists.
+GAX/IMX compatibility is demonstrated only by consuming the Reconstruction Bundle emitted by that provisional experimental reference through the established Replay contract. Exchange metadata is supplementary review evidence unless a supported mapping exists.
 
 Traceable output distinguishes semantic validation performed during import, source-asserted runtime evidence, attributable test-run evidence, declared controls, implemented controls, tested scope, operational observation and independent audit. Import success alone does not establish that a test occurred. Historical authorization is not current permission, and observed destination state is not independent institutional verification. Source-supplied commitments are rendered separately from locally computed record commitments; the legacy `hash` field remains an alias of the latter for additive compatibility.
