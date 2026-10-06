@@ -24,12 +24,14 @@ from .models import (
     ValidationSummary,
 )
 
-TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.2.6"
+TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.2.7"
 CANONICALIZATION_PROFILE = "json-sort-keys-compact-utf8-no-nan"
 MANIFEST_REVISION = "46c950bed37fe3812000895430bc0312d29e37ce"
-REPLAY_REVISION = "f12648313cedc2cf06145d397fa56cdea18cc800"
+REPLAY_REVISION = "1b4eb0e79f76abc28f9816756cb774a8fc4b115f"
 CONTROL_PLANE_REVISION = "283500652d47a692fb0b99a1172a6d5faffbd9a7"
-MOLTBOT_SAFE_REVISION = "6b0ba1185bcd390f71df947dda349415e4105f5f"
+LEGACY_MOLTBOT_SAFE_REVISION = "6b0ba1185bcd390f71df947dda349415e4105f5f"
+MOLTBOT_SAFE_REVISION = "a4df7a925ca1b820b9958c479ce28616547cc6d0"
+MOLTBOT_PRODUCER_PROFILE = "moltbot-safe-executor-evidence-1.0.0@a4df7a9"
 ODES_REVISION = "b3a2f1e72df88cd24d93d1b7d69963f43139e749"
 GAX_IMX_REVISION = "9ad378145d326799e3209136e47e82d66c6f69af"
 ALVORADA_REVISION = "fb3d97938969a89e149e8ff8db2756091d1233fc"
@@ -37,11 +39,11 @@ SUPPORTED_MANIFEST_VERSION = "1.1"
 SUPPORTED_RECONSTRUCTION_VERSION = "0.2.0"
 
 REQUIRED_REPOS = {
-    "cogno-us/cognous-agent-action-manifest": MANIFEST_REVISION,
-    "cogno-us/cognous-agent-replay-bundle": REPLAY_REVISION,
-    "cogno-us/cognous-agent-control-plane": CONTROL_PLANE_REVISION,
-    "cogno-us/moltbot-safe": MOLTBOT_SAFE_REVISION,
-    "cogno-us/constitutional-governance-for-institutions": ALVORADA_REVISION,
+    "cogno-us/cognous-agent-action-manifest": {MANIFEST_REVISION},
+    "cogno-us/cognous-agent-replay-bundle": {REPLAY_REVISION},
+    "cogno-us/cognous-agent-control-plane": {CONTROL_PLANE_REVISION},
+    "cogno-us/moltbot-safe": {MOLTBOT_SAFE_REVISION, LEGACY_MOLTBOT_SAFE_REVISION},
+    "cogno-us/constitutional-governance-for-institutions": {ALVORADA_REVISION},
 }
 EXECUTION_TYPES = {"execution_envelope", "execution_result", "destination_attempt", "destination_attempt_event", "destination_effect"}
 
@@ -263,8 +265,19 @@ def _validate_headers(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple
         profile_ids.add(str(profile_id))
         repo = profile.get("repository")
         revision = profile.get("revision")
-        if repo in REQUIRED_REPOS and revision not in (None, REQUIRED_REPOS[repo]):
-            raise ImportContractError(f"producer_profiles[{index}].revision for {repo} conflicts with pinned supported revision")
+        if repo in REQUIRED_REPOS and revision not in ({None} | REQUIRED_REPOS[repo]):
+            raise ImportContractError(
+                f"producer_profiles[{index}].revision for {repo} conflicts with supported revisions"
+            )
+        if repo == "cogno-us/moltbot-safe" and revision == MOLTBOT_SAFE_REVISION:
+            if profile_id != MOLTBOT_PRODUCER_PROFILE:
+                raise ImportContractError(
+                    "versioned Moltbot Safe revision requires executor producer profile 1.0.0"
+                )
+            if str(profile.get("format_version")) != "1.0.0":
+                raise ImportContractError(
+                    "versioned Moltbot Safe producer profile requires format_version 1.0.0"
+                )
     for index, record in enumerate(records):
         if str(record["producer_profile_id"]) not in profile_ids:
             raise ImportContractError(f"records[{index}].producer_profile_id references unknown producer profile {record['producer_profile_id']!r}")
@@ -312,6 +325,19 @@ def _retained_replay_inputs(bundle: dict[str, Any]) -> tuple[dict[str, Any], dic
             "attempt_events": by_type.get("destination_attempt_event", []),
             "effects": by_type.get("destination_effect", []),
         }
+        metadata = bundle.get("metadata") if isinstance(bundle.get("metadata"), dict) else {}
+        source_profile = metadata.get("moltbot_source_producer_profile")
+        source_bindings = metadata.get("moltbot_source_bindings")
+        if source_profile is not None:
+            if not isinstance(source_profile, dict) or not isinstance(source_bindings, dict):
+                raise ImportContractError(
+                    "versioned Moltbot producer metadata requires producer_profile and bindings"
+                )
+            moltbot["producer_profile"] = deepcopy(source_profile)
+            moltbot["bindings"] = deepcopy(source_bindings)
+            result_observation = moltbot["execution_result"].get("observation")
+            if isinstance(result_observation, dict):
+                moltbot["observation"] = deepcopy(result_observation)
     return control_plane, proposal, moltbot
 
 
