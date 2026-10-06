@@ -399,3 +399,21 @@ def test_accepted_gax_imx_generated_replay_bundle_imports(tmp_path: Path, monkey
 def test_empty_unversioned_bundle_rejected():
     with pytest.raises(ImportContractError):
         import_manifest_reconstruction(_manifest(), {"records": []})
+
+
+def test_versioned_moltbot_profile_requires_new_format_version():
+    manifest = _manifest()
+    bundle = _success_bundle()
+    bundle = copy.deepcopy(bundle)
+    profiles = bundle["producer_profiles"]
+    moltbot = next(p for p in profiles if p.get("repository") == "cogno-us/moltbot-safe")
+    moltbot["revision"] = "054e92d12ccb0bc756ca6652f39fc13b51e05d9b"
+    moltbot["format_version"] = "0.2.0"
+    with pytest.raises(ImportContractError, match="requires executor producer profile 1.0.0"):
+        import_manifest_reconstruction(manifest, bundle)
+
+
+def test_legacy_moltbot_revision_remains_supported_without_relabeling():
+    pack = import_manifest_reconstruction(_manifest(), _success_bundle())
+    trace = pack.metadata["traceable_import"]
+    assert trace["replay_semantic_validation"]["status"] == "executed"
