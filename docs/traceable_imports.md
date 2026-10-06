@@ -127,8 +127,8 @@ Evidence levels are deliberately separate:
 - **implemented** — must be established by implementation-specific evidence, not inferred from declarations;
 - **semantic validation performed during import** — the accepted Replay validator ran over the supplied records; this is not test-run evidence;
 - **source-asserted runtime evidence** — producer metadata may assert fixture/runtime provenance without proving that a test occurred;
-- **attributable test-run evidence** — complete source-attributed test provenance can support only its precise stated scope;
-- **tested** — unavailable unless attributable test-run evidence is supplied;
+- **attributable test-run evidence** — complete source-attributed test provenance requires meaningful string values for run identity, producer, scope and result, and can support only its precise stated scope; malformed supplied provenance remains unavailable and produces an import finding;
+- **tested** — unavailable unless valid attributable test-run evidence is supplied; source-stated outcomes such as passed, failed or inconclusive are preserved rather than normalized into assurance;
 - **operationally observed** — requires real deployment observation and is unavailable unless supplied;
 - **independently audited** — requires independent evidence and is unavailable unless supplied.
 
