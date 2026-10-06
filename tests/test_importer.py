@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_governance_evidence_pack.importer import ImportContractError, import_manifest_reconstruction
+from agent_governance_evidence_pack.importer import ImportContractError, import_manifest_reconstruction, sha256
 from agent_governance_evidence_pack.trace_renderer import render_traceable_markdown
 
 
@@ -104,6 +104,82 @@ def _result_uses_control_plane_attempt(bundle: dict) -> dict:
     result["identifiers"]["attempt_id"] = cp_attempt
     return out
 
+
+
+def _versioned_executor_bundle() -> dict:
+    bundle = copy.deepcopy(_success_bundle())
+    old_profile = next(
+        p for p in bundle["producer_profiles"]
+        if p.get("repository") == "cogno-us/moltbot-safe"
+    )
+    old_profile_id = old_profile["profile_id"]
+    new_profile_id = "moltbot-safe-executor-evidence-1.0.0@a4df7a9"
+    old_profile.update(
+        profile_id=new_profile_id,
+        revision="a4df7a925ca1b820b9958c479ce28616547cc6d0",
+        format_name="Executor producer evidence",
+        format_version="1.0.0",
+    )
+    for record in bundle["records"]:
+        if record.get("producer_profile_id") == old_profile_id:
+            record["producer_profile_id"] = new_profile_id
+    envelope = _records(bundle, "execution_envelope")[0]["data"]
+    result = _records(bundle, "execution_result")[0]["data"]
+    bundle.setdefault("metadata", {}).update(
+        moltbot_safe_revision="a4df7a925ca1b820b9958c479ce28616547cc6d0",
+        moltbot_producer_contract_version="1.0.0",
+        moltbot_repository_revision_provenance="source_asserted",
+        moltbot_revision_independently_established=False,
+        moltbot_legacy_unversioned=False,
+        moltbot_source_producer_profile={
+            "profile": "urn:cognous:profiles:moltbot-safe-executor-evidence:1.0.0",
+            "profile_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "execution_envelope_version": "0.2.0",
+            "repository_revision": "a4df7a925ca1b820b9958c479ce28616547cc6d0",
+            "repository_revision_provenance": "source_asserted",
+            "independently_established_provenance": False,
+        },
+        moltbot_source_bindings={
+            "decision_id": envelope["decision_id"],
+            "effect_id": envelope["effect_id"],
+            "operation_digest": sha256(envelope["operation"]),
+        },
+    )
+    assert result["decision_id"] == envelope["decision_id"]
+    return bundle
+
+
+def test_versioned_executor_profile_passes_traceable_import_without_claiming_independent_provenance():
+    pack = import_manifest_reconstruction(_manifest(), _versioned_executor_bundle())
+    profiles = {
+        item["repository"]: item
+        for item in pack.metadata["traceable_import"]["producer_profiles"]
+    }
+    moltbot = profiles["cogno-us/moltbot-safe"]
+    assert moltbot["revision"] == "a4df7a925ca1b820b9958c479ce28616547cc6d0"
+    assert moltbot["format_version"] == "1.0.0"
+    assert moltbot["independent_provenance_verification"] == "unavailable"
+
+
+def test_versioned_executor_profile_rejects_contradictory_revision():
+    bundle = _versioned_executor_bundle()
+    profile = next(
+        p for p in bundle["producer_profiles"]
+        if p.get("repository") == "cogno-us/moltbot-safe"
+    )
+    profile["revision"] = "0" * 40
+    with pytest.raises(ImportContractError):
+        import_manifest_reconstruction(_manifest(), bundle)
+
+
+def test_legacy_executor_profile_remains_supported_without_relabeling():
+    pack = import_manifest_reconstruction(_manifest(), _success_bundle())
+    profiles = {
+        item["repository"]: item
+        for item in pack.metadata["traceable_import"]["producer_profiles"]
+    }
+    assert profiles["cogno-us/moltbot-safe"]["revision"] == "6b0ba1185bcd390f71df947dda349415e4105f5f"
 
 def test_actual_pinned_success_imports_and_preserves_acknowledgement_receipt():
     pack = import_manifest_reconstruction(_manifest(), _success_bundle())
