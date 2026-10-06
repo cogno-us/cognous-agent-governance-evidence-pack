@@ -258,7 +258,7 @@ Copyright 2026 Cognous.
 
 ## Accepted producer compatibility
 
-The bounded traceable path is tested against pinned accepted producer contracts rather than local schema approximations. The current pins are Manifest `46c950b`, Control Plane `2835006`, Moltbot Safe `6b0ba11`, Replay `f126483`, ODES `b3a2f1e`, and the accepted experimental GAX/IMX reference `9ad3781`.
+The bounded traceable path is tested against pinned accepted producer contracts rather than local schema approximations. The current accepted pins are Manifest `46c950b`, Control Plane `2835006`, Moltbot Safe `1d308fa`, Replay `f63ce91`, and ODES `cba83a1`. The GAX/IMX experimental reference `9ad3781` remains provisional for bounded compatibility testing and is not promoted to an accepted stack dependency by this release.
 
 GAX/IMX compatibility is demonstrated only by consuming the Reconstruction Bundle emitted by that accepted reference through the established Replay contract. Exchange metadata is supplementary review evidence unless a supported mapping exists.
 
