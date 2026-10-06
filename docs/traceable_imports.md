@@ -9,9 +9,9 @@ The importer is deterministic and review-support oriented. It converts supplied 
 | Producer | Supported revision / format |
 |---|---|
 | Agent Action Manifest | `46c950bed37fe3812000895430bc0312d29e37ce`, Manifest v1.1 |
-| Agent Replay Bundle | `f12648313cedc2cf06145d397fa56cdea18cc800`, Reconstruction Bundle 0.2.0 |
+| Agent Replay Bundle | `1b4eb0e79f76abc28f9816756cb774a8fc4b115f`, Reconstruction Bundle 0.2.0 |
 | Agent Control Plane | `283500652d47a692fb0b99a1172a6d5faffbd9a7` |
-| Moltbot Safe | `6b0ba1185bcd390f71df947dda349415e4105f5f`, Execution Envelope 0.2.0 |
+| Moltbot Safe | `a4df7a925ca1b820b9958c479ce28616547cc6d0`, Execution Envelope 0.2.0 |
 | Alvorada | `fb3d97938969a89e149e8ff8db2756091d1233fc`, Authority Context 0.1.0 |
 
 The import path currently consumes a Manifest artifact and a Reconstruction Bundle artifact. It does not fetch arbitrary external references. It treats source text as data.
@@ -110,8 +110,8 @@ Accepted producer pins used by the traceable importer and integration checks:
 
 - Manifest v1.1: `46c950bed37fe3812000895430bc0312d29e37ce`
 - Control Plane: `283500652d47a692fb0b99a1172a6d5faffbd9a7`
-- Moltbot Safe: `6b0ba1185bcd390f71df947dda349415e4105f5f`
-- Reconstruction Bundle 0.2.0 / Replay: `f12648313cedc2cf06145d397fa56cdea18cc800`
+- Moltbot Safe: `a4df7a925ca1b820b9958c479ce28616547cc6d0`
+- Reconstruction Bundle 0.2.0 / Replay: `1b4eb0e79f76abc28f9816756cb774a8fc4b115f`
 - ODES: `b3a2f1e72df88cd24d93d1b7d69963f43139e749`
 - accepted experimental GAX/IMX reference: `9ad378145d326799e3209136e47e82d66c6f69af`
 
@@ -135,3 +135,18 @@ Evidence levels are deliberately separate:
 Historical authorization is retained as historical evidence. It does not establish current permission. Local destination observation is kept separate from independent institutional verification.
 
 Replay import findings are retained both as findings and as a conversion-loss register. Missing, unknown, unavailable and redacted states remain distinct; they are never normalized to success or zero.
+
+
+## Executor producer compatibility
+
+Current traceable imports accept Moltbot Safe executor producer evidence profile
+1.0.0 at the reviewed proposed revision. Repository revision inside the producer
+record remains source-asserted; the Evidence Pack records independent
+provenance verification as unavailable unless separate evidence establishes it.
+
+Historical Reconstruction Bundles that retain the unversioned
+`moltbot-safe-envelope-0.2.0@6b0ba118` producer remain accepted as legacy
+revision-pinned records. They are not rewritten or relabeled.
+
+A versioned producer profile with a contradictory repository revision,
+format version, or Replay semantic binding is rejected.
