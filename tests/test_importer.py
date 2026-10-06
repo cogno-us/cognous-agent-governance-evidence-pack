@@ -399,3 +399,76 @@ def test_accepted_gax_imx_generated_replay_bundle_imports(tmp_path: Path, monkey
 def test_empty_unversioned_bundle_rejected():
     with pytest.raises(ImportContractError):
         import_manifest_reconstruction(_manifest(), {"records": []})
+
+
+def _versioned_executor_bundle() -> dict:
+    bundle = copy.deepcopy(_success_bundle())
+    old_profile = "moltbot-safe-envelope-0.2.0@6b0ba118"
+    new_profile = "moltbot-safe-executor-1.0.0@894e1c1"
+    found = False
+    for profile in bundle["producer_profiles"]:
+        if profile.get("repository") == "cogno-us/moltbot-safe":
+            profile.update(
+                profile_id=new_profile,
+                revision="894e1c115cb91229c474a906c51ea9af7999e675",
+                format_name="Executor producer record",
+                format_version="1.0.0",
+                notes="Versioned source-asserted executor record.",
+            )
+            found = True
+    assert found
+    for record in bundle["records"]:
+        if record.get("producer_profile_id") == old_profile:
+            record["producer_profile_id"] = new_profile
+            record["record_id"] = record["record_id"].replace(old_profile, new_profile)
+    bundle.setdefault("metadata", {}).update(
+        moltbot_safe_revision="894e1c115cb91229c474a906c51ea9af7999e675",
+        moltbot_producer_profile_version="1.0.0",
+        moltbot_provenance={
+            "source_asserted": True,
+            "independently_established": False,
+            "state": "source_asserted",
+        },
+    )
+    return bundle
+
+
+def test_versioned_executor_profile_preserves_source_asserted_not_independent_provenance():
+    pack = import_manifest_reconstruction(_manifest(), _versioned_executor_bundle())
+    trace = pack.metadata["traceable_import"]
+    assert trace["replay_semantic_validation"]["status"] == "executed"
+    assert trace["lifecycle_summary"]["independent_verification"] == "unavailable"
+    assert trace["control_evidence_levels"]["source_asserted_runtime_evidence"]["status"] == "source_asserted"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["revision", "version", "profile", "provenance"],
+)
+def test_versioned_executor_profile_rejects_unsupported_or_contradictory_contract(mutation):
+    bundle = _versioned_executor_bundle()
+    producer = next(
+        p for p in bundle["producer_profiles"]
+        if p.get("repository") == "cogno-us/moltbot-safe"
+    )
+    if mutation == "revision":
+        producer["revision"] = "deadbeef"
+    elif mutation == "version":
+        producer["format_version"] = "9.9.9"
+    elif mutation == "profile":
+        producer["profile_id"] = "unsupported"
+    else:
+        bundle["metadata"]["moltbot_provenance"]["source_asserted"] = False
+    with pytest.raises(ImportContractError):
+        import_manifest_reconstruction(_manifest(), bundle)
+
+
+def test_legacy_executor_profile_remains_revision_pinned():
+    pack = import_manifest_reconstruction(_manifest(), _success_bundle())
+    source = next(
+        p for p in _success_bundle()["producer_profiles"]
+        if p.get("repository") == "cogno-us/moltbot-safe"
+    )
+    assert source["revision"] == "6b0ba1185bcd390f71df947dda349415e4105f5f"
+    assert source["format_version"] == "0.2.0"
+    assert pack.validation_summary.valid_bundle_count == 1
