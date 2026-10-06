@@ -199,10 +199,75 @@ def test_manifest_requirements_do_not_imply_implemented_controls():
     pack = import_manifest_reconstruction(_manifest(), _success_bundle())
     assert all(action.control_status.value == "planned" for action in pack.action_inventory)
     levels = pack.metadata["traceable_import"]["control_evidence_levels"]
-    assert levels["tested"]["status"] == "synthetic_runtime_evidence_present_but_scope_bounded"
+    assert levels["source_asserted_runtime_evidence"]["status"] == "source_asserted"
+    assert levels["tested"]["status"] == "unavailable"
     assert levels["implemented"]["status"] == "not_established_by_import"
+    assert levels["tested_in_this_repository"]["status"] == "not_evaluated_during_import"
     assert levels["operationally_observed"]["status"] == "unavailable"
 
+
+
+def test_missing_test_provenance_keeps_tested_unavailable_for_held_decision():
+    bundle = _strip_execution(_success_bundle(), "hold")
+    bundle["metadata"].pop("fixture_provenance", None)
+    bundle["metadata"].pop("scenario", None)
+    bundle["metadata"].pop("test_provenance", None)
+    pack = import_manifest_reconstruction(_manifest(), bundle)
+    levels = pack.metadata["traceable_import"]["control_evidence_levels"]
+    assert levels["semantic_validation_performed_during_import"]["status"] == "recorded_no_execution"
+    assert levels["source_asserted_runtime_evidence"]["status"] == "unavailable"
+    assert levels["attributable_test_run_evidence"]["status"] == "unavailable"
+    assert levels["tested"]["status"] == "unavailable"
+    assert levels["tested_in_this_repository"]["status"] == "not_evaluated_during_import"
+
+
+def test_attributed_negative_test_evidence_has_precise_scope_without_implying_repo_tests():
+    bundle = _strip_execution(_success_bundle(), "hold")
+    bundle["metadata"]["test_provenance"] = {
+        "test_run_id": "neg-hold-001",
+        "producer": "cognous-agent-control-plane integration harness",
+        "revision": "283500652d47a692fb0b99a1172a6d5faffbd9a7",
+        "scope": "revoked authority before execution -> held decision, no external effect",
+        "result": "passed",
+    }
+    pack = import_manifest_reconstruction(_manifest(), bundle)
+    levels = pack.metadata["traceable_import"]["control_evidence_levels"]
+    assert levels["semantic_validation_performed_during_import"]["status"] == "recorded_no_execution"
+    assert levels["attributable_test_run_evidence"]["status"] == "attributable_source_asserted"
+    assert levels["attributable_test_run_evidence"]["test_run_id"] == "neg-hold-001"
+    assert levels["tested"]["status"] == "attributable_test_evidence_present_scope_bounded"
+    assert levels["tested"]["scope"] == "revoked authority before execution -> held decision, no external effect"
+    assert levels["tested_in_this_repository"]["status"] == "not_evaluated_during_import"
+    assert pack.metadata["traceable_import"]["lifecycle_summary"]["execution_attempted"] == "no"
+
+
+def test_source_record_hash_compatibility_alias_matches_local_commitment():
+    pack = import_manifest_reconstruction(_manifest(), _success_bundle())
+    for ref in pack.metadata["traceable_import"]["source_record_refs"]:
+        assert ref["hash"] == ref["local_content_commitment"]
+        assert ref["hash"].startswith("sha256:")
+
+
+def test_renderer_distinguishes_source_and_local_commitments_and_source_assertions():
+    pack = import_manifest_reconstruction(_manifest(), _success_bundle())
+    refs = pack.metadata["traceable_import"]["source_record_refs"]
+    proposal_ref = next(ref for ref in refs if ref["record_type"] == "runtime_proposal")
+    assert proposal_ref["source_commitments"]
+    source = proposal_ref["source_commitments"][0]
+    assert source["verification_status"] == "checked_match"
+    assert source["canonicalization_profile"] == "json-sort-keys-compact-utf8-no-nan"
+    assert proposal_ref["local_commitment_verification_status"] == "computed_during_import"
+    assert proposal_ref["source_content_commitment"] == source["value"]
+    assert proposal_ref["source_canonicalization_profile"] == source["canonicalization_profile"]
+    out = render_traceable_markdown(pack)
+    assert "### Source-supplied commitments" in out
+    assert "### Locally computed record commitments" in out
+    assert "Evidence Class (source assertion)" in out
+    assert source["value"] in out
+    assert proposal_ref["local_content_commitment"] in out
+    assert "checked_match" in out
+    assert "computed_during_import" in out
+    assert "not the importer’s independent assurance" in out
 
 def test_renderer_escapes_html_and_table_breaks():
     pack = import_manifest_reconstruction(_manifest(), _success_bundle())
