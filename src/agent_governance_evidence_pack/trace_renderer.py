@@ -48,6 +48,16 @@ def render_traceable_markdown(pack: EvidencePack) -> str:
     losses=trace.get("conversion_losses") if isinstance(trace.get("conversion_losses"),list) else []
     table("Conversion losses and source findings",["Code","Category","Severity","Path","Value State","Message"],[[l.get("code"),l.get("category"),l.get("severity"),l.get("path"),l.get("value_state"),l.get("message")] for l in losses if isinstance(l,dict)],"No conversion losses or source findings recorded.")
     refs=trace.get("source_record_refs") if isinstance(trace.get("source_record_refs"),list) else []
-    table("Supporting source-record references",["Record ID","Type","Producer Profile","Evidence Class","Producer Revision","Revision Check","Source Path","Local Commitment"],[[r.get("record_id"),r.get("record_type"),r.get("producer_profile_id"),r.get("evidence_class"),r.get("producer_revision"),r.get("producer_revision_check"),r.get("source_path"),r.get("local_content_commitment")] for r in refs[:50] if isinstance(r,dict)],"No source-record references recorded.")
-    if len(refs)>50: parts += [f"Only the first 50 of {_escape(len(refs))} source-record references are rendered. Full references remain in JSON metadata.",""]
+    table("Supporting source-record references",["Record ID","Type","Producer Profile","Evidence Class (source assertion)","Producer Revision","Revision Check","Source Path"],[[r.get("record_id"),r.get("record_type"),r.get("producer_profile_id"),r.get("evidence_class"),r.get("producer_revision"),r.get("producer_revision_check"),r.get("source_path")] for r in refs[:50] if isinstance(r,dict)],"No source-record references recorded.")
+    source_commitment_rows=[]
+    for r in refs:
+        if not isinstance(r,dict): continue
+        commitments=r.get("source_commitments") if isinstance(r.get("source_commitments"),list) else []
+        for s in commitments:
+            if isinstance(s,dict):
+                source_commitment_rows.append([r.get("record_id"),s.get("label"),s.get("value"),s.get("algorithm"),s.get("canonicalization_profile"),s.get("verification_status"),s.get("source_path")])
+    table("Source-supplied commitments",["Record ID","Label","Commitment","Algorithm","Canonicalization","Source Verification Status","Source Path"],source_commitment_rows,"No source-supplied commitments recorded.")
+    table("Locally computed record commitments",["Record ID","Local Commitment","Compatibility Hash Alias","Canonicalization","Verification Status"],[[r.get("record_id"),r.get("local_content_commitment"),r.get("hash"),r.get("local_canonicalization_profile"),r.get("local_commitment_verification_status")] for r in refs[:50] if isinstance(r,dict)],"No locally computed record commitments recorded.")
+    parts += ["Source evidence classes and source verification statuses are retained as producer/source assertions. They are not the importer’s independent assurance or verification.",""]
+    if len(refs)>50: parts += [f"Only the first 50 of {_escape(len(refs))} source-record references and local commitments are rendered. Full references remain in JSON metadata.",""]
     return "\n".join(parts).rstrip()+"\n"
