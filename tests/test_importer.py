@@ -407,7 +407,7 @@ def test_versioned_moltbot_profile_requires_new_format_version():
     bundle = copy.deepcopy(bundle)
     profiles = bundle["producer_profiles"]
     moltbot = next(p for p in profiles if p.get("repository") == "cogno-us/moltbot-safe")
-    moltbot["revision"] = "054e92d12ccb0bc756ca6652f39fc13b51e05d9b"
+    moltbot["revision"] = "1d308faf664c504b6e310db3c7a310153ef7b067"
     moltbot["format_version"] = "0.2.0"
     with pytest.raises(ImportContractError, match="requires executor producer profile 1.0.0"):
         import_manifest_reconstruction(manifest, bundle)
