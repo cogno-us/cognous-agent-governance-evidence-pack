@@ -39,6 +39,17 @@ def render_traceable_markdown(pack: EvidencePack) -> str:
         parts.append("")
     levels=trace.get("control_evidence_levels") if isinstance(trace.get("control_evidence_levels"),dict) else {}
     table("Control evidence levels",["Level","Status","Evidence","Meaning"],[[k,v.get("status"),", ".join(str(x) for x in v.get("evidence",[])) if isinstance(v,dict) and isinstance(v.get("evidence"),list) else "",v.get("meaning")] for k,v in levels.items() if isinstance(v,dict)],"No control evidence level metadata recorded.")
+    test_attr=levels.get("attributable_test_run_evidence") if isinstance(levels.get("attributable_test_run_evidence"),dict) else {}
+    if test_attr.get("status") == "attributable_source_asserted":
+        table("Attributed test-run evidence (source assertion)",["Field","Value"],[
+            ["test_run_id",test_attr.get("test_run_id")],
+            ["producer",test_attr.get("producer")],
+            ["revision",test_attr.get("revision")],
+            ["scope",test_attr.get("scope")],
+            ["result",test_attr.get("result")],
+            ["attribution_status",test_attr.get("status")],
+        ],"No attributable test-run evidence recorded.")
+        parts += ["This attribution is source-supplied. The importer preserves pass, fail, inconclusive, or other source-stated results without converting them into independent assurance.",""]
     findings=trace.get("import_findings") if isinstance(trace.get("import_findings"),list) else []
     table("Import findings and unresolved limitations",["Code","Severity","Path/Source","Message"],[[f.get("code"),f.get("severity"),f.get("path") or f.get("source"),f.get("message")] for f in findings if isinstance(f,dict)],"No import findings recorded.")
     unresolved=trace.get("unresolved_issues") if isinstance(trace.get("unresolved_issues"),list) else []
