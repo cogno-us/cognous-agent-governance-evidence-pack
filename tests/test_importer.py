@@ -384,15 +384,24 @@ def test_accepted_gax_imx_generated_replay_bundle_imports(tmp_path: Path, monkey
     monkeypatch.setenv("UPSTREAM_REPLAY_SUCCESS_EXAMPLE", str(_path_from_env("UPSTREAM_REPLAY_SUCCESS_EXAMPLE")))
     monkeypatch.setenv("MOLTBOT_SAFE_CONTROL_PLANE_ROOT", str(_path_from_env("UPSTREAM_CONTROL_PLANE_ROOT")))
     monkeypatch.setenv("MOLTBOT_SAFE_ROOT", str(_path_from_env("UPSTREAM_MOLTBOT_SAFE_ROOT")))
-    from experiments.odex_gax_imx_reference.gax_ref_runtime import run_actual_outcome
+    from experiments.odex_gax_imx_reference.gax_ref_runtime import digest, run_actual_outcome
 
     exchange = run_actual_outcome(tmp_path, "success")
-    bundle = exchange["reconstruction_bundle"]
+    artifact_export = exchange["artifact_export"]
+    assert artifact_export["state"] == "original_complete"
+    bundle = artifact_export["reconstruction_bundle"]
+    refs = artifact_export["producer_refs"]
+    commitments = artifact_export["content_commitments"]
+    assert refs["reconstruction_bundle_id"] == bundle["bundle_id"]
+    assert refs["reconstruction_digest"] == digest(bundle)
+    assert commitments["reconstruction_bundle"] == refs["reconstruction_digest"]
+
     pack = import_manifest_reconstruction(_manifest(), bundle)
     trace = pack.metadata["traceable_import"]
     assert trace["replay_semantic_validation"]["status"] == "executed"
-    assert trace["supported_revisions"]["gax_imx_experimental_reference"] == "9ad378145d326799e3209136e47e82d66c6f69af"
+    assert trace["supported_revisions"]["gax_imx_experimental_reference"] == "6bcde026a804c7377f5e39f57ca6dd00b3c3292d"
     assert trace["lifecycle_summary"]["destination_observed"] == "applied"
+    assert trace["lifecycle_summary"]["current_permission"] == "not_evaluated_from_historical_records"
     assert trace["lifecycle_summary"]["independent_verification"] == "unavailable"
 
 
