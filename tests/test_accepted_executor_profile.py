@@ -291,7 +291,8 @@ def test_actual_execution_time_denied_has_no_fabricated_effect(tmp_path):
 def test_actual_control_plane_hold_has_no_execution_or_effect(tmp_path):
     h = _load_moltbot_fixture()
     helper = h._load_pinned_helpers()
-    p = helper.proposal()
+    run_id = "run-held"
+    p = helper.proposal().model_copy(update={"run_id": run_id})
     resolver = helper.resolver_for(p)
     grant = resolver.contexts[helper.PROFILE]["grant"]
     resolver.statuses[grant["grant_id"]].status = "revoked"
@@ -299,7 +300,7 @@ def test_actual_control_plane_hold_has_no_execution_or_effect(tmp_path):
         manifest=helper.manifest(),
         resolver=resolver,
         destination=helper.LocalRefundDestination(tmp_path / "cp-placeholder.json"),
-        records=helper.BoundedRecordStore(tmp_path / "cp-run.json", "run-held"),
+        records=helper.BoundedRecordStore(tmp_path / "cp-run.json", run_id),
     )
     decision = workflow.decide(p, now=helper.NOW)
     assert decision.result in {"hold", "deny", "denied"}
