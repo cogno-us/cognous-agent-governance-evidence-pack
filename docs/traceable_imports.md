@@ -44,7 +44,7 @@ Every generated pack includes `metadata.traceable_import` with:
 - derived counts;
 - lifecycle summary;
 - control-evidence levels;
-- source-record references and hashes;
+- source-record references, source-supplied commitments, and additive `hash`/local commitment aliases;
 - import findings;
 - manual assessments, if supplied.
 
@@ -83,10 +83,10 @@ Control evidence is represented at four separate levels:
 |---|---|
 | Declared | The Manifest or other source declares the control or requirement. |
 | Implemented | Source artifacts report implemented status; this is reported, not independently proven. |
-| Tested | Synthetic or supplied test records support a test claim within that environment only. |
+| Tested | Complete attributable test-run evidence supports a test claim only for its stated scope. Semantic import validation or runtime records alone do not establish that a test occurred. |
 | Operationally observed | Independent real-world operational observation. Default is unavailable unless supplied. |
 
-Synthetic integration results may support “tested in this synthetic environment.” They cannot support “operationally effective,” “independently audited,” or “deployment approved.”
+Source-asserted runtime or fixture provenance is recorded separately from attributable test-run evidence. Semantic validation performed during import is also separate. Only complete attributable test-run provenance may support a bounded tested status, and only for its precise stated scope. None of these support “operationally effective,” “independently audited,” or “deployment approved.”
 
 ## Integrity and redaction limits
 
@@ -119,13 +119,16 @@ The GAX/IMX reference is consumed only through the Reconstruction Bundle it prod
 
 ### Provenance and evidence levels
 
-Trace metadata preserves producer profile identity, repository revision, source evidence class, local content commitments and whether the declared producer revision matches an accepted pin. This is a contract comparison, not independent provenance verification.
+Trace metadata preserves producer profile identity, repository revision, source evidence class, source-supplied commitments, locally computed record commitments and whether the declared producer revision matches an accepted pin. The legacy `hash` field remains as an additive compatibility alias of `local_content_commitment`. Producer evidence classes and source commitment verification statuses remain source assertions; this is not independent provenance verification.
 
 Evidence levels are deliberately separate:
 
 - **declared** — a manifest or producer record says a control or requirement exists;
 - **implemented** — must be established by implementation-specific evidence, not inferred from declarations;
-- **tested** — bounded synthetic producer evidence and semantic import checks support only the exercised path;
+- **semantic validation performed during import** — the accepted Replay validator ran over the supplied records; this is not test-run evidence;
+- **source-asserted runtime evidence** — producer metadata may assert fixture/runtime provenance without proving that a test occurred;
+- **attributable test-run evidence** — complete source-attributed test provenance can support only its precise stated scope;
+- **tested** — unavailable unless attributable test-run evidence is supplied;
 - **operationally observed** — requires real deployment observation and is unavailable unless supplied;
 - **independently audited** — requires independent evidence and is unavailable unless supplied.
 
