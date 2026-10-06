@@ -240,3 +240,11 @@ See `docs/roadmap.md`.
 Apache-2.0. See LICENSE and NOTICE.
 
 Copyright 2026 Cognous.
+
+## Accepted producer compatibility
+
+The bounded traceable path is tested against pinned accepted producer contracts rather than local schema approximations. The current pins are Manifest `46c950b`, Control Plane `2835006`, Moltbot Safe `6b0ba11`, Replay `f126483`, ODES `b3a2f1e`, and the accepted experimental GAX/IMX reference `9ad3781`.
+
+GAX/IMX compatibility is demonstrated only by consuming the Reconstruction Bundle emitted by that accepted reference through the established Replay contract. Exchange metadata is supplementary review evidence unless a supported mapping exists.
+
+Traceable output distinguishes source-asserted provenance from independent verification and separates declared, implemented, tested, operationally observed and independently audited evidence levels. Historical authorization is not current permission, and observed destination state is not independent institutional verification.
