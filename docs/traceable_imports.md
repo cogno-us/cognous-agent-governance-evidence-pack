@@ -149,3 +149,35 @@ Legacy unversioned Moltbot evidence at
 `6b0ba1185bcd390f71df947dda349415e4105f5f` remains supported through Replay's
 explicit legacy compatibility path. Historical artifacts are not relabeled or
 upgraded in place.
+
+
+## Accepted executor / Replay compatibility
+
+The versioned executor path is validated against:
+
+- Moltbot Safe `1d308faf664c504b6e310db3c7a310153ef7b067`
+- executor producer profile
+  `urn:cognous:profiles:moltbot-safe-executor-producer` / `1.0.0`
+- Execution Envelope `0.2.0`
+- Replay `f63ce914504dd06813c4ccd199b0570dbd8dd427`
+- ODES `cba83a1c06f718a8afd76178f36e5cc15896347d`
+
+Replay-validated executor attempts and explicitly attributed Control Plane attempts
+remain separate namespaces. Evidence Pack reconstructs the accepted Replay
+semantic-validation input from those records and rejects ambiguous or dangling
+attempt lineage.
+
+The executor contract retains interface/profile version, repository revision,
+source-asserted provenance and independently established provenance as separate
+facts. Source assertions and locally computed commitments are not promoted to
+authentication or independent verification.
+
+Historical unversioned Moltbot artifacts remain supported only through the
+legacy Replay-managed revision-pinned path at
+`6b0ba1185bcd390f71df947dda349415e4105f5f`. Historical artifacts are not
+relabeled as producer-profile 1.0.0 evidence.
+
+The Alvorada/GAX experimental checkout at
+`9ad378145d326799e3209136e47e82d66c6f69af` remains a provisional
+experimental dependency for bounded compatibility tests. Batch 3C does not
+promote it to an accepted stack dependency.
