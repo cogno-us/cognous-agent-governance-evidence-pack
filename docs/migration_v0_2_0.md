@@ -47,19 +47,21 @@ If upstream artifacts contain HMAC or other shared-secret integrity metadata, th
 - Production resolver authentication, host confinement, distributed budgets and independent real-world effect verification remain external to this release.
 - Generated packs depend on the supplied artifacts; missing source records are surfaced as limitations, not silently filled.
 
-## 0.2.4 traceability clarification
+## 0.2.5 traceability clarification
 
-The importer transformation version advances to `agep-manifest-reconstruction-import/0.2.4` without changing the top-level Evidence Pack schema version.
+The importer transformation version advances to `agep-manifest-reconstruction-import/0.2.5` without changing the top-level Evidence Pack schema version.
 
 New trace metadata includes:
 
 - producer-profile revision and provenance status;
+- source-supplied commitments, canonicalization profiles and source verification statuses;
 - local content commitments and canonicalization profile for retained source records;
+- the legacy `hash` field as an alias of `local_content_commitment` for additive compatibility;
 - source evidence class without promoting it to independent verification;
 - explicit conversion-loss records derived from Replay import findings;
 - `current_permission: not_evaluated_from_historical_records`;
 - accepted ODES and experimental GAX/IMX pins used by integration validation.
 
-The control-evidence-level summary no longer treats import success as proof of runtime control effectiveness. Bounded synthetic producer evidence can support a tested-path statement only. It does not establish production effectiveness, adoption, certification, compliance or independent audit.
+The control-evidence-level summary does not treat import success or runtime records as proof that a test occurred. Replay semantic validation performed during import, source-asserted runtime/fixture provenance and attributable test-run evidence are represented separately. `tested` remains unavailable unless complete attributable test provenance is supplied, and any resulting claim is limited to that precise scope. No such evidence establishes production effectiveness, adoption, certification, compliance or independent audit.
 
 No migration is required for hand-authored 0.1 packs or earlier 0.2.0 imported packs. Consumers that inspect `metadata.traceable_import` should tolerate the added keys.
