@@ -196,7 +196,7 @@ def test_actual_reconciliation_preserves_one_effect_and_attempt_namespaces(tmp_p
 
 @pytest.mark.parametrize("mode,expected_ack,expected_observed", [
     ("lost_ack", "unknown", "applied"),
-    ("partial", "unknown", "partial"),
+    ("partial", "received", "partial"),
 ])
 def test_actual_lost_ack_and_partial_preserve_material_lifecycle(
     tmp_path, mode, expected_ack, expected_observed
@@ -290,17 +290,18 @@ def test_actual_execution_time_denied_has_no_fabricated_effect(tmp_path):
 
 def test_actual_control_plane_hold_has_no_execution_or_effect(tmp_path):
     h = _load_moltbot_fixture()
-    p = h.proposal()
-    resolver = h.resolver_for(p)
-    grant = resolver.contexts[h.PROFILE]["grant"]
+    helper = h._load_pinned_helpers()
+    p = helper.proposal()
+    resolver = helper.resolver_for(p)
+    grant = resolver.contexts[helper.PROFILE]["grant"]
     resolver.statuses[grant["grant_id"]].status = "revoked"
-    workflow = h.BoundedAuthorizationWorkflow(
-        manifest=h.manifest(),
+    workflow = helper.BoundedAuthorizationWorkflow(
+        manifest=helper.manifest(),
         resolver=resolver,
-        destination=h.LocalRefundDestination(tmp_path / "cp-placeholder.json"),
-        records=h.BoundedRecordStore(tmp_path / "cp-run.json", "run-held"),
+        destination=helper.LocalRefundDestination(tmp_path / "cp-placeholder.json"),
+        records=helper.BoundedRecordStore(tmp_path / "cp-run.json", "run-held"),
     )
-    decision = workflow.decide(p, now=h.NOW)
+    decision = workflow.decide(p, now=helper.NOW)
     assert decision.result in {"hold", "deny", "denied"}
 
     cp = workflow.records.load().model_dump(mode="json")
