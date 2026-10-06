@@ -9,9 +9,9 @@ The importer is deterministic and review-support oriented. It converts supplied 
 | Producer | Supported revision / format |
 |---|---|
 | Agent Action Manifest | `46c950bed37fe3812000895430bc0312d29e37ce`, Manifest v1.1 |
-| Agent Replay Bundle | `f12648313cedc2cf06145d397fa56cdea18cc800`, Reconstruction Bundle 0.2.0 |
+| Agent Replay Bundle | `f63ce914504dd06813c4ccd199b0570dbd8dd427`, Reconstruction Bundle 0.2.0 |
 | Agent Control Plane | `283500652d47a692fb0b99a1172a6d5faffbd9a7` |
-| Moltbot Safe | `6b0ba1185bcd390f71df947dda349415e4105f5f`, Execution Envelope 0.2.0 |
+| Moltbot Safe | `1d308faf664c504b6e310db3c7a310153ef7b067` (executor producer profile 1.0.0), Execution Envelope 0.2.0 |
 | Alvorada | `fb3d97938969a89e149e8ff8db2756091d1233fc`, Authority Context 0.1.0 |
 
 The import path currently consumes a Manifest artifact and a Reconstruction Bundle artifact. It does not fetch arbitrary external references. It treats source text as data.
@@ -110,12 +110,12 @@ Accepted producer pins used by the traceable importer and integration checks:
 
 - Manifest v1.1: `46c950bed37fe3812000895430bc0312d29e37ce`
 - Control Plane: `283500652d47a692fb0b99a1172a6d5faffbd9a7`
-- Moltbot Safe: `6b0ba1185bcd390f71df947dda349415e4105f5f`
-- Reconstruction Bundle 0.2.0 / Replay: `f12648313cedc2cf06145d397fa56cdea18cc800`
-- ODES: `b3a2f1e72df88cd24d93d1b7d69963f43139e749`
-- accepted experimental GAX/IMX reference: `9ad378145d326799e3209136e47e82d66c6f69af`
+- Moltbot Safe: `1d308faf664c504b6e310db3c7a310153ef7b067` (executor producer profile 1.0.0)
+- Reconstruction Bundle 0.2.0 / Replay: `f63ce914504dd06813c4ccd199b0570dbd8dd427`
+- ODES: `cba83a1c06f718a8afd76178f36e5cc15896347d`
+- provisional experimental GAX/IMX reference: `9ad378145d326799e3209136e47e82d66c6f69af`
 
-The GAX/IMX reference is consumed only through the Reconstruction Bundle it produces. Exchange-specific metadata remains supplementary unless represented by the supported Replay contract. The importer does not consume unfinished transport interfaces or invent fields to make an exchange artifact look compatible.
+The provisional experimental GAX/IMX reference is consumed only through the Reconstruction Bundle it produces. Exchange-specific metadata remains supplementary unless represented by the supported Replay contract. The importer does not consume unfinished transport interfaces or invent fields to make an exchange artifact look compatible.
 
 ### Provenance and evidence levels
 
@@ -135,3 +135,49 @@ Evidence levels are deliberately separate:
 Historical authorization is retained as historical evidence. It does not establish current permission. Local destination observation is kept separate from independent institutional verification.
 
 Replay import findings are retained both as findings and as a conversion-loss register. Missing, unknown, unavailable and redacted states remain distinct; they are never normalized to success or zero.
+
+
+## Executor producer profile migration
+
+New executor evidence is accepted only when Replay preserves the versioned
+`urn:cognous:profiles:moltbot-safe-executor-producer` contract at version
+`1.0.0` and the accepted repository revision `1d308faf664c504b6e310db3c7a310153ef7b067`. The Evidence Pack
+keeps the interface version, repository revision, source-asserted provenance and
+independently established provenance distinct.
+
+Legacy unversioned Moltbot evidence at
+`6b0ba1185bcd390f71df947dda349415e4105f5f` remains supported through Replay's
+explicit legacy compatibility path. Historical artifacts are not relabeled or
+upgraded in place.
+
+
+## Accepted executor / Replay compatibility
+
+The versioned executor path is validated against:
+
+- Moltbot Safe `1d308faf664c504b6e310db3c7a310153ef7b067`
+- executor producer profile
+  `urn:cognous:profiles:moltbot-safe-executor-producer` / `1.0.0`
+- Execution Envelope `0.2.0`
+- Replay `f63ce914504dd06813c4ccd199b0570dbd8dd427`
+- ODES `cba83a1c06f718a8afd76178f36e5cc15896347d`
+
+Replay-validated executor attempts and explicitly attributed Control Plane attempts
+remain separate namespaces. Evidence Pack reconstructs the accepted Replay
+semantic-validation input from those records and rejects ambiguous or dangling
+attempt lineage.
+
+The executor contract retains interface/profile version, repository revision,
+source-asserted provenance and independently established provenance as separate
+facts. Source assertions and locally computed commitments are not promoted to
+authentication or independent verification.
+
+Historical unversioned Moltbot artifacts remain supported only through the
+legacy Replay-managed revision-pinned path at
+`6b0ba1185bcd390f71df947dda349415e4105f5f`. Historical artifacts are not
+relabeled as producer-profile 1.0.0 evidence.
+
+The Alvorada/GAX experimental checkout at
+`9ad378145d326799e3209136e47e82d66c6f69af` remains a provisional
+experimental dependency for bounded compatibility tests. Batch 3C does not
+promote it to an accepted stack dependency.

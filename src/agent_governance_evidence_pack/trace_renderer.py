@@ -56,6 +56,22 @@ def render_traceable_markdown(pack: EvidencePack) -> str:
     table("Unresolved issues",["Code","Severity","Message"],[[u.get("code"),u.get("severity"),u.get("message")] for u in unresolved if isinstance(u,dict)],"No unresolved issues recorded.")
     profiles=trace.get("producer_profiles") if isinstance(trace.get("producer_profiles"),list) else []
     table("Producer profiles",["Profile","Repository","Revision","Format Version","Revision Check","Independent Provenance Verification"],[[p.get("producer_profile_id"),p.get("repository"),p.get("revision"),p.get("format_version"),p.get("revision_check"),p.get("independent_provenance_verification")] for p in profiles if isinstance(p,dict)],"No producer-profile metadata recorded.")
+    executor_contract=trace.get("executor_producer_contract") if isinstance(trace.get("executor_producer_contract"),dict) else None
+    if executor_contract:
+        provenance=executor_contract.get("provenance") if isinstance(executor_contract.get("provenance"),dict) else {}
+        source_asserted=provenance.get("source_asserted") if isinstance(provenance.get("source_asserted"),dict) else {}
+        independently=provenance.get("independently_established") if isinstance(provenance.get("independently_established"),list) else []
+        table("Executor producer contract",["Field","Value"],[
+            ["interface_profile_id",executor_contract.get("interface_profile_id")],
+            ["interface_profile_version",executor_contract.get("interface_profile_version")],
+            ["repository_revision",executor_contract.get("repository_revision")],
+            ["legacy",executor_contract.get("legacy")],
+            ["source_asserted_repository_revision",source_asserted.get("repository_revision")],
+            ["source_asserted_profile_id",source_asserted.get("producer_profile_id")],
+            ["source_asserted_profile_version",source_asserted.get("producer_profile_version")],
+            ["independently_established_count",len(independently)],
+        ],"No executor producer contract recorded.")
+        parts += ["Executor producer metadata and repository revision are source assertions unless separately established. A locally computed commitment or successful semantic import does not authenticate the producer or independently verify the outcome.",""]
     losses=trace.get("conversion_losses") if isinstance(trace.get("conversion_losses"),list) else []
     table("Conversion losses and source findings",["Code","Category","Severity","Path","Value State","Message"],[[l.get("code"),l.get("category"),l.get("severity"),l.get("path"),l.get("value_state"),l.get("message")] for l in losses if isinstance(l,dict)],"No conversion losses or source findings recorded.")
     refs=trace.get("source_record_refs") if isinstance(trace.get("source_record_refs"),list) else []
