@@ -8,7 +8,7 @@ from .summary import summarize_evidence_pack
 def _escape(value: object) -> str:
     if value is None:
         return ""
-    return html_escape(str(value), quote=False).replace("|", "\\|")
+    return html_escape(str(value), quote=False).replace("|", "\\|").replace("\r", "&#13;").replace("\n", "&#10;").replace("`", "&#96;").replace("[", "&#91;").replace("]", "&#93;")
 
 
 def _yn(value: bool) -> str:

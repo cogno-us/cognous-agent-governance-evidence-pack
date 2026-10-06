@@ -1,17 +1,23 @@
 """Renderer addendum for traceable imported evidence packs."""
 from __future__ import annotations
 from html import escape as html_escape
+import json
 from .models import EvidencePack
 from .renderer import render_markdown
 
 def _escape(v: object) -> str:
     if v is None: return ""
-    return html_escape(str(v), quote=False).replace("|", "\\|")
+    return html_escape(str(v), quote=False).replace("|", "\\|").replace("\r", "&#13;").replace("\n", "&#10;").replace("`", "&#96;").replace("[", "&#91;").replace("]", "&#93;")
 def _or_dash(v: object) -> str: return "—" if v in (None,"",[],{}) else str(v)
 
 def render_traceable_markdown(pack: EvidencePack) -> str:
     base=render_markdown(pack); trace=pack.metadata.get("traceable_import") if isinstance(pack.metadata,dict) else None
     if not isinstance(trace,dict): return base
+    if trace.get("transformation_version") == "agep-manifest-reconstruction-import/0.3.0" or "retained_sources" in trace or (trace.get("executor_producer_contract") or {}).get("interface_profile_version") == "2.0.0":
+        from .validator import validate_evidence_pack
+        report = validate_evidence_pack(pack)
+        if any(issue.code == "E_TRACE_SEMANTICS" for issue in report.issues):
+            raise ValueError("Cannot render inconsistent traceable evidence")
     parts=[base.rstrip(),"","## 16. Traceability and Import Provenance",""]
     parts.append("This section is generated from `metadata.traceable_import`. It is review support only. It does not certify deployment approval, compliance, operational effectiveness, or independent audit."); parts.append("")
     def table(title,heads,rows,empty):
@@ -33,7 +39,7 @@ def render_traceable_markdown(pack: EvidencePack) -> str:
     if isinstance(c.get("counting_rules"),list):
         parts.append("Counting rules:"); [parts.append(f"- {_escape(r)}") for r in c["counting_rules"]]; parts.append("")
     life=trace.get("lifecycle_summary") if isinstance(trace.get("lifecycle_summary"),dict) else {}
-    table("Lifecycle and effect status",["Dimension","Value"],[[k,life.get(k)] for k in ["authorization","current_permission","execution_attempted","acknowledgement","destination_observed","independent_verification"] if k in life],"No lifecycle summary recorded.")
+    table("Lifecycle and effect status",["Dimension","Value"],[[k,life.get(k)] for k in ["authorization","current_permission","execution_attempted","acknowledgement","destination_observed","destination_observation_scope","reconstruction_status","retry_permission","independent_verification"] if k in life],"No lifecycle summary recorded.")
     if isinstance(life.get("notes"),list):
         for n in life["notes"]: parts.append(f"- {_escape(n)}")
         parts.append("")
@@ -87,4 +93,8 @@ def render_traceable_markdown(pack: EvidencePack) -> str:
     table("Locally computed record commitments",["Record ID","Local Commitment","Compatibility Hash Alias","Canonicalization","Verification Status"],[[r.get("record_id"),r.get("local_content_commitment"),r.get("hash"),r.get("local_canonicalization_profile"),r.get("local_commitment_verification_status")] for r in refs[:50] if isinstance(r,dict)],"No locally computed record commitments recorded.")
     parts += ["Source evidence classes and source verification statuses are retained as producer/source assertions. They are not the importer’s independent assurance or verification.",""]
     if len(refs)>50: parts += [f"Only the first 50 of {_escape(len(refs))} source-record references and local commitments are rendered. Full references remain in JSON metadata.",""]
+    if "retained_sources" in trace:
+        parts += ["### Complete material trace (escaped JSON)", "",
+            "The following is the complete trace metadata without truncation. Null observations, rejected content, historical states, policy/evaluation metadata and original sources remain distinct. Rejected evidence is not accepted lineage. No retry or current authority is established.", "",
+            "<pre>" + html_escape(json.dumps(trace, ensure_ascii=False, indent=2), quote=False) + "</pre>", ""]
     return "\n".join(parts).rstrip()+"\n"
