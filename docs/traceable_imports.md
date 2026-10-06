@@ -44,7 +44,7 @@ Every generated pack includes `metadata.traceable_import` with:
 - derived counts;
 - lifecycle summary;
 - control-evidence levels;
-- source-record references and hashes;
+- source-record references, source-supplied commitments, and additive `hash`/local commitment aliases;
 - import findings;
 - manual assessments, if supplied.
 
@@ -83,10 +83,10 @@ Control evidence is represented at four separate levels:
 |---|---|
 | Declared | The Manifest or other source declares the control or requirement. |
 | Implemented | Source artifacts report implemented status; this is reported, not independently proven. |
-| Tested | Synthetic or supplied test records support a test claim within that environment only. |
+| Tested | Complete attributable test-run evidence supports a test claim only for its stated scope. Semantic import validation or runtime records alone do not establish that a test occurred. |
 | Operationally observed | Independent real-world operational observation. Default is unavailable unless supplied. |
 
-Synthetic integration results may support “tested in this synthetic environment.” They cannot support “operationally effective,” “independently audited,” or “deployment approved.”
+Source-asserted runtime or fixture provenance is recorded separately from attributable test-run evidence. Semantic validation performed during import is also separate. Only complete attributable test-run provenance may support a bounded tested status, and only for its precise stated scope. None of these support “operationally effective,” “independently audited,” or “deployment approved.”
 
 ## Integrity and redaction limits
 
@@ -103,3 +103,35 @@ An evidence pack supports review. Schema validity, successful reconstruction, tr
 The replay importer currently supports one supplied proposal/envelope operation. The evidence pack import path preserves that boundary and does not imply fleet-wide or multi-operation coverage.
 
 Control Plane institution/domain fields and producer versions have known gaps. Authority Context profile references remain distinct from context-instance identifiers. Production resolver authentication, host confinement, distributed budgets and independent real-world effect verification remain outside these baselines.
+
+## Worker 10 bounded review completion
+
+Accepted producer pins used by the traceable importer and integration checks:
+
+- Manifest v1.1: `46c950bed37fe3812000895430bc0312d29e37ce`
+- Control Plane: `283500652d47a692fb0b99a1172a6d5faffbd9a7`
+- Moltbot Safe: `6b0ba1185bcd390f71df947dda349415e4105f5f`
+- Reconstruction Bundle 0.2.0 / Replay: `f12648313cedc2cf06145d397fa56cdea18cc800`
+- ODES: `b3a2f1e72df88cd24d93d1b7d69963f43139e749`
+- accepted experimental GAX/IMX reference: `9ad378145d326799e3209136e47e82d66c6f69af`
+
+The GAX/IMX reference is consumed only through the Reconstruction Bundle it produces. Exchange-specific metadata remains supplementary unless represented by the supported Replay contract. The importer does not consume unfinished transport interfaces or invent fields to make an exchange artifact look compatible.
+
+### Provenance and evidence levels
+
+Trace metadata preserves producer profile identity, repository revision, source evidence class, source-supplied commitments, locally computed record commitments and whether the declared producer revision matches an accepted pin. The legacy `hash` field remains as an additive compatibility alias of `local_content_commitment`. Producer evidence classes and source commitment verification statuses remain source assertions; this is not independent provenance verification.
+
+Evidence levels are deliberately separate:
+
+- **declared** — a manifest or producer record says a control or requirement exists;
+- **implemented** — must be established by implementation-specific evidence, not inferred from declarations;
+- **semantic validation performed during import** — the accepted Replay validator ran over the supplied records; this is not test-run evidence;
+- **source-asserted runtime evidence** — producer metadata may assert fixture/runtime provenance without proving that a test occurred;
+- **attributable test-run evidence** — complete source-attributed test provenance requires meaningful string values for run identity, producer, scope and result, and can support only its precise stated scope; malformed supplied provenance remains unavailable and produces an import finding;
+- **tested** — unavailable unless valid attributable test-run evidence is supplied; source-stated outcomes such as passed, failed or inconclusive are preserved rather than normalized into assurance;
+- **operationally observed** — requires real deployment observation and is unavailable unless supplied;
+- **independently audited** — requires independent evidence and is unavailable unless supplied.
+
+Historical authorization is retained as historical evidence. It does not establish current permission. Local destination observation is kept separate from independent institutional verification.
+
+Replay import findings are retained both as findings and as a conversion-loss register. Missing, unknown, unavailable and redacted states remain distinct; they are never normalized to success or zero.
