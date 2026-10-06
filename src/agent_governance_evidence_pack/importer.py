@@ -27,7 +27,7 @@ from .models import (
 TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.2.6"
 CANONICALIZATION_PROFILE = "json-sort-keys-compact-utf8-no-nan"
 MANIFEST_REVISION = "46c950bed37fe3812000895430bc0312d29e37ce"
-REPLAY_REVISION = "22aa742b2735b64b850c2c37688ef1fae5ff9014"  # proposed dependency head
+REPLAY_REVISION = "710ceb5667762a5e8f3a7b02e14c40eb8e1a9379"  # proposed dependency head
 CONTROL_PLANE_REVISION = "283500652d47a692fb0b99a1172a6d5faffbd9a7"
 LEGACY_MOLTBOT_SAFE_REVISION = "6b0ba1185bcd390f71df947dda349415e4105f5f"
 MOLTBOT_SAFE_REVISION = "054e92d12ccb0bc756ca6652f39fc13b51e05d9b"  # proposed producer-profile head
