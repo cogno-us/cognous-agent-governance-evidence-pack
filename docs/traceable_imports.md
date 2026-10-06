@@ -113,9 +113,9 @@ Accepted producer pins used by the traceable importer and integration checks:
 - Moltbot Safe: `1d308faf664c504b6e310db3c7a310153ef7b067` (executor producer profile 1.0.0)
 - Reconstruction Bundle 0.2.0 / Replay: `f63ce914504dd06813c4ccd199b0570dbd8dd427`
 - ODES: `cba83a1c06f718a8afd76178f36e5cc15896347d`
-- provisional experimental GAX/IMX reference: `9ad378145d326799e3209136e47e82d66c6f69af`
+- accepted GAX/IMX retained-artifact reference: `6bcde026a804c7377f5e39f57ca6dd00b3c3292d`
 
-The provisional experimental GAX/IMX reference is consumed only through the Reconstruction Bundle it produces. Exchange-specific metadata remains supplementary unless represented by the supported Replay contract. The importer does not consume unfinished transport interfaces or invent fields to make an exchange artifact look compatible.
+The accepted GAX/IMX retained-artifact reference is consumed only through the Reconstruction Bundle it produces. Exchange-specific metadata remains supplementary unless represented by the supported Replay contract. The importer does not consume unfinished transport interfaces or invent fields to make an exchange artifact look compatible.
 
 ### Provenance and evidence levels
 
@@ -177,7 +177,7 @@ legacy Replay-managed revision-pinned path at
 `6b0ba1185bcd390f71df947dda349415e4105f5f`. Historical artifacts are not
 relabeled as producer-profile 1.0.0 evidence.
 
-The Alvorada/GAX experimental checkout at
-`9ad378145d326799e3209136e47e82d66c6f69af` remains a provisional
-experimental dependency for bounded compatibility tests. Batch 3C does not
-promote it to an accepted stack dependency.
+The accepted Alvorada/GAX checkout at
+`6bcde026a804c7377f5e39f57ca6dd00b3c3292d` is the supported retained-artifact
+compatibility baseline for this integration test. Deferred Alvorada PR #2 is
+not consumed.
