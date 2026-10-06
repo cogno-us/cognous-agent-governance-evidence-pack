@@ -115,7 +115,7 @@ Accepted producer pins used by the traceable importer and integration checks:
 - ODES: `cba83a1c06f718a8afd76178f36e5cc15896347d`
 - accepted GAX/IMX retained-artifact reference: `6bcde026a804c7377f5e39f57ca6dd00b3c3292d`
 
-The accepted GAX/IMX retained-artifact reference is consumed only through the Reconstruction Bundle it produces. Exchange-specific metadata remains supplementary unless represented by the supported Replay contract. The importer does not consume unfinished transport interfaces or invent fields to make an exchange artifact look compatible.
+The accepted GAX/IMX integration test consumes the original Reconstruction Bundle through the versioned retained-artifact result/export contract. Before Evidence Pack import, the test checks the retained bundle identity against `producer_refs.reconstruction_bundle_id` and recomputes its canonical digest against the retained reconstruction commitment. Exchange-specific metadata remains supplementary unless represented by the supported Replay contract.
 
 ### Provenance and evidence levels
 
