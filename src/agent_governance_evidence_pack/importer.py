@@ -27,9 +27,12 @@ from .models import (
 TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.2.6"
 CANONICALIZATION_PROFILE = "json-sort-keys-compact-utf8-no-nan"
 MANIFEST_REVISION = "46c950bed37fe3812000895430bc0312d29e37ce"
-REPLAY_REVISION = "f12648313cedc2cf06145d397fa56cdea18cc800"
+REPLAY_REVISION = "22aa742b2735b64b850c2c37688ef1fae5ff9014"  # proposed dependency head
 CONTROL_PLANE_REVISION = "283500652d47a692fb0b99a1172a6d5faffbd9a7"
-MOLTBOT_SAFE_REVISION = "6b0ba1185bcd390f71df947dda349415e4105f5f"
+LEGACY_MOLTBOT_SAFE_REVISION = "6b0ba1185bcd390f71df947dda349415e4105f5f"
+MOLTBOT_SAFE_REVISION = "054e92d12ccb0bc756ca6652f39fc13b51e05d9b"  # proposed producer-profile head
+MOLTBOT_PRODUCER_PROFILE_ID = "urn:cognous:profiles:moltbot-safe-executor-producer"
+MOLTBOT_PRODUCER_PROFILE_VERSION = "1.0.0"
 ODES_REVISION = "b3a2f1e72df88cd24d93d1b7d69963f43139e749"
 GAX_IMX_REVISION = "9ad378145d326799e3209136e47e82d66c6f69af"
 ALVORADA_REVISION = "fb3d97938969a89e149e8ff8db2756091d1233fc"
@@ -37,11 +40,11 @@ SUPPORTED_MANIFEST_VERSION = "1.1"
 SUPPORTED_RECONSTRUCTION_VERSION = "0.2.0"
 
 REQUIRED_REPOS = {
-    "cogno-us/cognous-agent-action-manifest": MANIFEST_REVISION,
-    "cogno-us/cognous-agent-replay-bundle": REPLAY_REVISION,
-    "cogno-us/cognous-agent-control-plane": CONTROL_PLANE_REVISION,
-    "cogno-us/moltbot-safe": MOLTBOT_SAFE_REVISION,
-    "cogno-us/constitutional-governance-for-institutions": ALVORADA_REVISION,
+    "cogno-us/cognous-agent-action-manifest": {MANIFEST_REVISION},
+    "cogno-us/cognous-agent-replay-bundle": {REPLAY_REVISION},
+    "cogno-us/cognous-agent-control-plane": {CONTROL_PLANE_REVISION},
+    "cogno-us/moltbot-safe": {LEGACY_MOLTBOT_SAFE_REVISION, MOLTBOT_SAFE_REVISION},
+    "cogno-us/constitutional-governance-for-institutions": {ALVORADA_REVISION},
 }
 EXECUTION_TYPES = {"execution_envelope", "execution_result", "destination_attempt", "destination_attempt_event", "destination_effect"}
 
@@ -263,8 +266,11 @@ def _validate_headers(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple
         profile_ids.add(str(profile_id))
         repo = profile.get("repository")
         revision = profile.get("revision")
-        if repo in REQUIRED_REPOS and revision not in (None, REQUIRED_REPOS[repo]):
+        if repo in REQUIRED_REPOS and revision not in ({None} | REQUIRED_REPOS[repo]):
             raise ImportContractError(f"producer_profiles[{index}].revision for {repo} conflicts with pinned supported revision")
+        if repo == "cogno-us/moltbot-safe" and revision == MOLTBOT_SAFE_REVISION:
+            if profile.get("format_version") != MOLTBOT_PRODUCER_PROFILE_VERSION:
+                raise ImportContractError("versioned Moltbot producer revision requires executor producer profile 1.0.0")
     for index, record in enumerate(records):
         if str(record["producer_profile_id"]) not in profile_ids:
             raise ImportContractError(f"records[{index}].producer_profile_id references unknown producer profile {record['producer_profile_id']!r}")
@@ -311,7 +317,26 @@ def _retained_replay_inputs(bundle: dict[str, Any]) -> tuple[dict[str, Any], dic
             "attempts": by_type.get("destination_attempt", []),
             "attempt_events": by_type.get("destination_attempt_event", []),
             "effects": by_type.get("destination_effect", []),
+            "observations": by_type.get("executor_observation", []),
         }
+        contract = (bundle.get("metadata") or {}).get("moltbot_producer_contract")
+        if isinstance(contract, dict) and not contract.get("legacy"):
+            moltbot["producer_profile"] = {
+                "profile_id": contract.get("interface_profile_id"),
+                "profile_version": contract.get("interface_profile_version"),
+                "execution_envelope_version": moltbot["execution_envelope"].get("version"),
+            }
+            moltbot["repository"] = {
+                "repository": "cogno-us/moltbot-safe",
+                "revision": contract.get("repository_revision"),
+                "revision_status": "source_asserted",
+            }
+            provenance = contract.get("provenance") or {}
+            moltbot["provenance"] = {
+                "source_asserted": deepcopy(provenance.get("source_asserted") or {}),
+                "independently_established": deepcopy(provenance.get("independently_established") or []),
+                "meaning": "preserved from Replay producer contract",
+            }
     return control_plane, proposal, moltbot
 
 
