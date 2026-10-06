@@ -1,0 +1,26 @@
+{
+  "manifest_id": "refund-agent-manifest",
+  "manifest_version": "1.1",
+  "agent": {
+    "name": "RefundAgent",
+    "description": "Handles bounded refund proposals."
+  },
+  "business_purpose": "Draft and execute bounded refund operations only under approved authority.",
+  "deployment_context": {
+    "environment": "staging",
+    "systems_touched": [
+      "refund-api"
+    ]
+  },
+  "actions": [
+    {
+      "action_id": "issue_refund",
+      "action_name": "Issue refund",
+      "tool_name": "refund_api",
+      "action_type": "external_send",
+      "authority_required": true,
+      "review_required": true,
+      "control_status": "implemented"
+    }
+  ]
+}

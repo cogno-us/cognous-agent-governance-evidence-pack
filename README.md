@@ -2,11 +2,13 @@
 
 **Business-facing evidence packages for governed AI-agent deployment.**
 
-Agent Governance Evidence Pack is a lightweight public schema, validator, and markdown renderer for summarizing AI-agent runtime governance evidence. It helps teams document what an agent is deployed to do, which tools and systems it can access, which actions require authority or review, what was blocked, what sources were relied on, what replay bundles exist, what validation results are available, what exports were redacted or signed, and what risks remain open.
+Agent Governance Evidence Pack is a lightweight public schema, validator, importer, and markdown renderer for summarizing AI-agent runtime governance evidence. It helps teams document what an agent is deployed to do, which tools and systems it can access, which actions require authority or review, what was blocked, what sources were relied on, what replay bundles exist, what validation results are available, what exports were redacted or signed, and what risks remain open.
 
 It is designed for teams moving from AI-agent demos to governed deployment.
 
 This repository is intentionally narrow. It is not an agent framework, not a model runtime, not a compliance certification product, not a hosted dashboard, and not a complete enterprise governance platform. It is a reference format for business-facing governance evidence.
+
+An evidence pack supports review. Schema validity, successful reconstruction, traceable derivation, and passing synthetic tests do not establish deployment approval, compliance, independent audit, or operational effectiveness.
 
 ---
 
@@ -27,6 +29,7 @@ An Agent Governance Evidence Pack is a structured JSON document and rendered mar
 11. What exports were redacted or signed
 12. What risks are open
 13. Who reviewed the evidence and what was decided
+14. Which source records and transformation rules support derived summaries
 
 ---
 
@@ -46,6 +49,7 @@ Governance teams need to answer:
 - What validation results are available?
 - What risks remain open?
 - Who reviewed the evidence?
+- Which records support each derived count or conclusion?
 
 This repo gives teams a public reference format for business-facing AI-agent governance review.
 
@@ -68,6 +72,7 @@ This repo gives teams a public reference format for business-facing AI-agent gov
 | Redaction and Export Summary | Exports produced for review recipients |
 | Risk Register | Known risks with severity, status, and mitigation |
 | Review Records | Governance review decisions and conditions |
+| Traceability Metadata | Input artifact hashes, producer revisions, counting rules, source-record references, and import findings |
 
 ---
 
@@ -79,6 +84,17 @@ pytest
 agep validate examples/customer_service_agent_evidence_pack.json
 agep summarize examples/customer_service_agent_evidence_pack.json
 agep render examples/customer_service_agent_evidence_pack.json --out /tmp/customer_service_evidence_pack.md
+```
+
+Traceable import from pinned Manifest and Reconstruction Bundle artifacts:
+
+```bash
+agep import \
+  --manifest examples/import_inputs/traceable_manifest.json \
+  --reconstruction examples/import_inputs/traceable_reconstruction_bundle.json \
+  --out /tmp/traceable_imported_evidence_pack.json \
+  --render /tmp/traceable_imported_evidence_pack.md \
+  --generated-at 2026-10-05T00:00:00Z
 ```
 
 ---
@@ -118,12 +134,25 @@ agep validate <path/to/evidence_pack.json>
 agep summarize <path/to/evidence_pack.json>
   Print a compact summary of key counts and status.
 
-agep render <path/to/evidence_pack.json> [--out output.md]
-  Render an evidence pack as markdown. Prints to stdout if --out is not given.
+agep render <path/to/evidence_pack.json> [--out output.md] [--traceable]
+  Render an evidence pack as markdown. Use --traceable to include import provenance.
+
+agep import --manifest <manifest.json> --reconstruction <bundle.json> --out <evidence_pack.json> [--render output.md]
+  Generate a traceable evidence pack from actual Manifest and Reconstruction Bundle artifacts.
 
 agep check-examples
   Validate and render all examples/*.json files.
 ```
+
+---
+
+## Traceable imports
+
+`agep import` consumes a supported Manifest v1.1 artifact and Reconstruction Bundle 0.2.0 artifact. It records input artifact IDs, hashes, canonicalization profile, producer revisions, derived counts, lifecycle status, source-record references, and import findings under `metadata.traceable_import`.
+
+The importer separates imported facts, computed summaries, and manual assessments. It does not treat `reconstruction_complete` as effect completion, does not treat HMAC integrity as public issuer identity or independent review, and does not infer human approval from software generation.
+
+See `docs/traceable_imports.md`.
 
 ---
 
@@ -149,9 +178,11 @@ See `docs/validation.md` for all validation rules.
 
 ```python
 from agent_governance_evidence_pack import load_evidence_pack, render_markdown
+from agent_governance_evidence_pack import render_traceable_markdown
 
 pack = load_evidence_pack("examples/customer_service_agent_evidence_pack.json")
 md = render_markdown(pack)
+traceable_md = render_traceable_markdown(pack)
 ```
 
 Pre-rendered examples are in `examples/rendered/`. See `docs/rendering.md`.
@@ -165,7 +196,7 @@ Agent Control Plane records and governs what an agent actually proposes at runti
 Agent Replay Bundle packages technical run records for audit and replay.
 Agent Governance Evidence Pack translates those runtime records into business-facing governance evidence.
 
-This repository does not depend on any of the above. Evidence packs can be populated from any source, manually or via import helpers.
+This repository does not act as a runtime gate. Evidence packs can be populated from any source, manually or via import helpers. Generated packs support review; they do not approve deployment or certify compliance.
 
 ---
 
@@ -177,7 +208,7 @@ Schemas are in `schemas/`. The primary schema is `schemas/evidence_pack.schema.j
 
 ## Examples
 
-Four example evidence packs are included:
+Four hand-authored example evidence packs are included:
 
 | Example | Scenario | Review Status |
 |---|---|---|
@@ -186,13 +217,15 @@ Four example evidence packs are included:
 | `procurement_agent_evidence_pack.json` | Vendor quote comparison, purchase order blocked 5x | `approved_with_conditions` |
 | `finance_workflow_agent_evidence_pack.json` | Invoice processing, payment approval blocked 2x | `approved_with_conditions` |
 
+Traceable import input artifacts are under `examples/import_inputs/`. Generated traceable examples should be produced with `agep import` so their hashes and derived counts match the source artifacts.
+
 See `docs/examples.md`.
 
 ---
 
 ## Security / scope
 
-This is a schema, validator, and markdown renderer. It is not a security boundary. It does not enforce runtime access control. It does not certify compliance. See `SECURITY.md`.
+This is a schema, validator, importer, and markdown renderer. It is not a security boundary. It does not enforce runtime access control. It does not certify compliance. See `SECURITY.md`.
 
 ---
 
