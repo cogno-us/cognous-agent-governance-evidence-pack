@@ -628,7 +628,7 @@ def _producer_profile_status(profile: dict[str, Any] | None) -> dict[str, Any]:
         revision_check = "source_asserted_unpinned"
     elif revision is None:
         revision_check = "accepted_repository_revision_not_supplied"
-    elif revision == expected:
+    elif revision in expected:
         revision_check = "declared_revision_matches_accepted_pin"
     else:
         revision_check = "declared_revision_conflicts_with_accepted_pin"
