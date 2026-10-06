@@ -465,6 +465,21 @@ def validate_evidence_pack(pack: EvidencePack) -> ValidationReport:
                 )
             )
 
+    trace = pack.metadata.get("traceable_import", {})
+    if isinstance(trace, dict) and ("retained_sources" in trace or trace.get("transformation_version") == "agep-manifest-reconstruction-import/0.3.0" or (trace.get("executor_producer_contract") or {}).get("interface_profile_version") == "2.0.0"):
+        try:
+            from .importer import import_manifest_reconstruction
+            sources = trace["retained_sources"]
+            expected = import_manifest_reconstruction(sources["manifest"], sources["reconstruction_bundle"],
+                title=pack.title, generated_at=pack.generated_at)
+            if trace != expected.metadata["traceable_import"]:
+                raise ValueError("traceable transformation differs from retained source reconstruction")
+            for field in ("pack_id", "replay_bundles", "validation_summary", "action_inventory", "policy_controls", "authority_model"):
+                if getattr(pack, field) != getattr(expected, field):
+                    raise ValueError(f"{field} differs from retained source reconstruction")
+        except Exception as exc:
+            issues.append(_error("E_TRACE_SEMANTICS", f"Retained Replay semantic validation failed: {exc}", "metadata.traceable_import"))
+
     has_errors = any(
         issue.severity == ValidationSeverity.error for issue in issues
     )
