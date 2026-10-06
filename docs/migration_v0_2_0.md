@@ -46,3 +46,20 @@ If upstream artifacts contain HMAC or other shared-secret integrity metadata, th
 - Broader multi-operation and fleet-wide import remains outside the current replay importer boundary.
 - Production resolver authentication, host confinement, distributed budgets and independent real-world effect verification remain external to this release.
 - Generated packs depend on the supplied artifacts; missing source records are surfaced as limitations, not silently filled.
+
+## 0.2.4 traceability clarification
+
+The importer transformation version advances to `agep-manifest-reconstruction-import/0.2.4` without changing the top-level Evidence Pack schema version.
+
+New trace metadata includes:
+
+- producer-profile revision and provenance status;
+- local content commitments and canonicalization profile for retained source records;
+- source evidence class without promoting it to independent verification;
+- explicit conversion-loss records derived from Replay import findings;
+- `current_permission: not_evaluated_from_historical_records`;
+- accepted ODES and experimental GAX/IMX pins used by integration validation.
+
+The control-evidence-level summary no longer treats import success as proof of runtime control effectiveness. Bounded synthetic producer evidence can support a tested-path statement only. It does not establish production effectiveness, adoption, certification, compliance or independent audit.
+
+No migration is required for hand-authored 0.1 packs or earlier 0.2.0 imported packs. Consumers that inspect `metadata.traceable_import` should tolerate the added keys.
