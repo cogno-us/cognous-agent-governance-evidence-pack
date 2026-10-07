@@ -30,6 +30,10 @@ def render_traceable_markdown(pack: EvidencePack) -> str:
     arts=trace.get("input_artifacts") if isinstance(trace.get("input_artifacts"),list) else []
     table("Input artifacts",["Role","Artifact ID","Version","Hash","Trusted Revision","Verification Status"],[[a.get("artifact_role"),a.get("artifact_id"),a.get("version"),a.get("hash"),a.get("trusted_revision"),a.get("verification_status")] for a in arts if isinstance(a,dict)],"No input artifact metadata recorded.")
     parts += ["### Transformation","","| Field | Value |","|---|---|",f"| Transformation Version | {_escape(trace.get('transformation_version'))} |",f"| Canonicalization Profile | {_escape(trace.get('canonicalization_profile'))} |",""]
+    selected=trace.get("selected_revisions") if isinstance(trace.get("selected_revisions"),dict) else {}
+    table("Selected producer revisions",["Component","Selected Revision"],[[k,v] for k,v in selected.items()],"No selected revision metadata recorded.")
+    supported_sets=trace.get("supported_revision_sets") if isinstance(trace.get("supported_revision_sets"),dict) else {}
+    table("Supported producer revision sets",["Component","Supported Revisions"],[[k,", ".join(str(x) for x in v) if isinstance(v,list) else v] for k,v in supported_sets.items()],"No supported revision-set metadata recorded.")
     c=trace.get("derived_counts") if isinstance(trace.get("derived_counts"),dict) else {}; rows=[]
     for k in ["proposal_count","decision_count","distinct_effect_count","control_plane_attempt_count","executor_attempt_count","attempt_transition_record_count","authorization_granted_count","authorization_held_count","authorization_denied_count"]:
         if k in c: rows.append([k,c[k]])
