@@ -34,6 +34,14 @@ def _material_trace(markdown: str) -> dict:
 
 @pytest.fixture(scope="module")
 def repaired_cases(tmp_path_factory):
+    required_env = (
+        "AGEP_ACCEPTED_REPLAY_ROOT",
+        "AGEP_PERSISTENCE_CONTROL_PLANE_ROOT",
+        "AGEP_ACCEPTED_EXECUTOR_ROOT",
+        "AGEP_MANIFEST_FIXTURE",
+    )
+    if not all(os.environ.get(name) for name in required_env):
+        pytest.skip("accepted persistence-repair producer checkouts not configured")
     output = tmp_path_factory.mktemp("agep-control-plane-store")
     subprocess.run(
         [
