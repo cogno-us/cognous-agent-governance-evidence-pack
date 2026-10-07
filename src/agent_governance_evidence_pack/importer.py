@@ -82,28 +82,35 @@ def _is_persistence_v2(bundle: dict[str, Any]) -> bool:
     return _selected_control_plane_revision(bundle) == CONTROL_PLANE_V2_PERSISTENCE_REVISION
 
 
-def _accepted_replay_v2_profiles() -> dict[str, str]:
+def _accepted_replay_v2_profiles(*, require_persistence: bool = False) -> dict[str, str]:
+    try:
+        from agent_replay_bundle.importers import (
+            BOUNDED_V2_PROFILE,
+            CONTROL_PLANE_V2_REVISION as replay_v2_revision,
+        )
+    except Exception as exc:
+        raise ImportContractError("accepted Replay v2 compatibility mapping unavailable") from exc
+    if replay_v2_revision != V2_REVISIONS["control_plane"]:
+        raise ImportContractError("accepted Replay Control Plane v2 revision contradicts Evidence Pack compatibility contract")
+    mapping = {replay_v2_revision: BOUNDED_V2_PROFILE}
     try:
         from agent_replay_bundle.importers import (
             BOUNDED_V2_PERSISTENCE_PROFILE,
-            BOUNDED_V2_PROFILE,
             CONTROL_PLANE_V2_PERSISTENCE_REVISION as replay_persistence_revision,
-            CONTROL_PLANE_V2_REVISION as replay_v2_revision,
             CONTROL_PLANE_V2_REVISIONS as replay_v2_revisions,
         )
-    except Exception as exc:
-        raise ImportContractError(
-            f"accepted Replay v2 compatibility mapping unavailable; install cogno-us/cognous-agent-replay-bundle at {ACCEPTED_REPLAY_PERSISTENCE_REVISION}"
-        ) from exc
-    expected = CONTROL_PLANE_V2_REVISIONS
-    if tuple(replay_v2_revisions) != expected:
+    except ImportError as exc:
+        if require_persistence:
+            raise ImportContractError(
+                f"accepted Replay persistence compatibility mapping unavailable; install cogno-us/cognous-agent-replay-bundle at {ACCEPTED_REPLAY_PERSISTENCE_REVISION}"
+            ) from exc
+        return mapping
+    if tuple(replay_v2_revisions) != CONTROL_PLANE_V2_REVISIONS:
         raise ImportContractError("accepted Replay Control Plane revision set contradicts Evidence Pack compatibility contract")
-    if replay_v2_revision != V2_REVISIONS["control_plane"] or replay_persistence_revision != CONTROL_PLANE_V2_PERSISTENCE_REVISION:
-        raise ImportContractError("accepted Replay Control Plane revision constants contradict Evidence Pack compatibility contract")
-    return {
-        replay_v2_revision: BOUNDED_V2_PROFILE,
-        replay_persistence_revision: BOUNDED_V2_PERSISTENCE_PROFILE,
-    }
+    if replay_persistence_revision != CONTROL_PLANE_V2_PERSISTENCE_REVISION:
+        raise ImportContractError("accepted Replay persistence revision contradicts Evidence Pack compatibility contract")
+    mapping[replay_persistence_revision] = BOUNDED_V2_PERSISTENCE_PROFILE
+    return mapping
 
 
 REQUIRED_REPOS = {
@@ -345,7 +352,7 @@ def _validate_headers(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple
                     "versioned Moltbot producer revision requires accepted Replay producer profile identity"
                 )
         if repo == "cogno-us/cognous-agent-control-plane" and revision in CONTROL_PLANE_V2_REVISIONS:
-            expected_profile = _accepted_replay_v2_profiles()[revision]
+            expected_profile = _accepted_replay_v2_profiles(require_persistence=revision == CONTROL_PLANE_V2_PERSISTENCE_REVISION)[revision]
             if profile.get("profile_id") != expected_profile:
                 raise ImportContractError(
                     "Control Plane producer profile identity contradicts accepted Replay revision/profile mapping"
@@ -492,7 +499,7 @@ def _run_pinned_replay_validator(bundle: dict[str, Any]) -> str:
         if revision not in {CONTROL_PLANE_REVISION, *CONTROL_PLANE_V2_REVISIONS}:
             raise ImportContractError("unsupported Control Plane revision")
         if _is_v2(bundle):
-            replay_profiles = _accepted_replay_v2_profiles()
+            replay_profiles = _accepted_replay_v2_profiles(require_persistence=revision == CONTROL_PLANE_V2_PERSISTENCE_REVISION)
             cp_profile = next(
                 (p for p in bundle.get("producer_profiles", [])
                  if isinstance(p, dict) and p.get("repository") == "cogno-us/cognous-agent-control-plane"),
@@ -1096,19 +1103,20 @@ def import_manifest_reconstruction(manifest: dict[str, Any], reconstruction_bund
         selected_control_plane = _selected_control_plane_revision(bundle)
         selected = PERSISTENCE_REVISIONS if _is_persistence_v2(bundle) else V2_REVISIONS
         trace["supported_revisions"].update(selected)
-        trace["supported_revision_sets"] = deepcopy(SUPPORTED_REVISION_SETS)
-        selected_profiles = {
-            p.get("repository"): p.get("revision")
-            for p in bundle.get("producer_profiles", [])
-            if isinstance(p, dict) and p.get("repository") and p.get("revision")
-        }
-        trace["selected_revisions"] = {
-            "manifest": MANIFEST_REVISION,
-            "replay": selected["replay"],
-            "control_plane": selected_control_plane,
-        }
-        if selected_profiles.get("cogno-us/moltbot-safe"):
-            trace["selected_revisions"]["moltbot_safe"] = selected_profiles["cogno-us/moltbot-safe"]
+        if _is_persistence_v2(bundle):
+            trace["supported_revision_sets"] = deepcopy(SUPPORTED_REVISION_SETS)
+            selected_profiles = {
+                p.get("repository"): p.get("revision")
+                for p in bundle.get("producer_profiles", [])
+                if isinstance(p, dict) and p.get("repository") and p.get("revision")
+            }
+            trace["selected_revisions"] = {
+                "manifest": MANIFEST_REVISION,
+                "replay": selected["replay"],
+                "control_plane": selected_control_plane,
+            }
+            if selected_profiles.get("cogno-us/moltbot-safe"):
+                trace["selected_revisions"]["moltbot_safe"] = selected_profiles["cogno-us/moltbot-safe"]
         trace["replay_semantic_validation"]["required_revision"] = selected["replay"]
         trace["input_artifacts"][1]["trusted_revision"] = selected["replay"]
         trace["retained_sources"] = {"manifest": manifest, "reconstruction_bundle": bundle}
