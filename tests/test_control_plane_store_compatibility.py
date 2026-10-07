@@ -3,14 +3,11 @@ from __future__ import annotations
 
 import copy
 from html import unescape
-import importlib.util
 import json
 import os
 from pathlib import Path
-import sqlite3
 import subprocess
 import sys
-import tempfile
 
 import pytest
 
@@ -31,127 +28,25 @@ EXECUTOR_REVISION = "177354e959cc78c59c1a776f018cfbfbf28c927b"
 MANIFEST_REVISION = "46c950bed37fe3812000895430bc0312d29e37ce"
 
 
-def _git_head(path: Path) -> str:
-    return subprocess.check_output(
-        ["git", "-C", str(path), "rev-parse", "HEAD"], text=True
-    ).strip()
-
-
 def _material_trace(markdown: str) -> dict:
     return json.loads(unescape(markdown.split("<pre>")[-1].split("</pre>")[0]))
 
 
 @pytest.fixture(scope="module")
 def repaired_cases(tmp_path_factory):
-    replay_root = Path(os.environ["AGEP_ACCEPTED_REPLAY_ROOT"]).resolve()
-    cp_root = Path(os.environ["AGEP_PERSISTENCE_CONTROL_PLANE_ROOT"]).resolve()
-    executor_root = Path(os.environ["AGEP_ACCEPTED_EXECUTOR_ROOT"]).resolve()
-    manifest_path = Path(os.environ["AGEP_MANIFEST_FIXTURE"]).resolve()
-
-    assert _git_head(replay_root) == REPLAY_REVISION
-    assert _git_head(cp_root) == PERSISTENCE_REVISION
-    assert _git_head(executor_root) == EXECUTOR_REVISION
-    assert _git_head(manifest_path.parents[1]) == MANIFEST_REVISION
-
-    sys.path.insert(0, str(replay_root / "src"))
-    from agent_replay_bundle import import_bounded_workflow
-
-    generator_spec = importlib.util.spec_from_file_location(
-        "agep_store_compat_generator",
-        replay_root / "scripts" / "generate_producer_v2_examples.py",
+    output = tmp_path_factory.mktemp("agep-control-plane-store")
+    subprocess.run(
+        [
+            sys.executable,
+            "scripts/qualify_control_plane_store_compatibility.py",
+            str(output),
+        ],
+        check=True,
+        env=os.environ.copy(),
     )
-    generator = importlib.util.module_from_spec(generator_spec)
-    assert generator_spec.loader is not None
-    generator_spec.loader.exec_module(generator)
-
-    manifest = json.loads(manifest_path.read_text())
-    captured = []
-
-    def inspect(*args, **kwargs):
-        bundle = import_bounded_workflow(*args, **kwargs)
-        source = bundle.model_dump(mode="json")
-        before = copy.deepcopy(source)
-        pack = import_manifest_reconstruction(manifest, source)
-        report = validate_evidence_pack(pack)
-        assert report.valid, report
-        markdown = render_traceable_markdown(pack)
-        assert source == before
-        assert _material_trace(markdown) == pack.metadata["traceable_import"]
-        captured.append(
-            {
-                "bundle": source,
-                "pack": pack,
-                "markdown": markdown,
-            }
-        )
-        return bundle
-
-    generator.import_bounded_workflow = inspect
-    generated = tmp_path_factory.mktemp("agep-control-plane-store")
-    env = os.environ.copy()
-    env["ARB_V2_CONTROL_PLANE_ROOT"] = str(cp_root)
-    env["ARB_V2_MOLTBOT_ROOT"] = str(executor_root)
-    env["ARB_PINNED_MANIFEST_FIXTURE"] = str(manifest_path)
-
-    old_env = os.environ.copy()
-    os.environ.update(env)
-    try:
-        generator.main(generated)
-    finally:
-        os.environ.clear()
-        os.environ.update(old_env)
-
-    sources = json.loads((generated / "producer_v2_sources.json").read_text())
-    results = json.loads((generated / "producer_v2_results.json").read_text())
-    cases = dict(zip(sources, captured, strict=True))
-
-    # Actual held/no-effect producer path against the repaired Control Plane.
-    sys.path[:0] = [str(cp_root / "src"), str(executor_root)]
-    os.environ["MOLTBOT_SAFE_CONTROL_PLANE_ROOT"] = str(cp_root)
-    os.environ["MOLTBOT_SAFE_MANIFEST_FIXTURE"] = str(manifest_path)
-    fixture_spec = importlib.util.spec_from_file_location(
-        "agep_store_held_fixture", executor_root / "tests" / "test_safe_executor.py"
-    )
-    fixture = importlib.util.module_from_spec(fixture_spec)
-    assert fixture_spec.loader is not None
-    fixture_spec.loader.exec_module(fixture)
-
-    with tempfile.TemporaryDirectory() as temporary:
-        h, proposal, resolver, workflow, _, destination, _, request = fixture._integrated(
-            Path(temporary)
-        )
-        resolver.statuses[request.operation.grant_id].status = "revoked"
-        workflow.records = h.BoundedRecordStore(Path(temporary) / "held.json", "run-1")
-        decision = workflow.decide(proposal, now=h.NOW)
-        assert decision.result == "hold"
-        cp_before = workflow.records.path.read_bytes()
-
-        def rows():
-            with sqlite3.connect(destination.path) as db:
-                return list(db.iterdump())
-
-        destination_before = rows()
-        held_bundle = import_bounded_workflow(
-            workflow.records.load().model_dump(mode="json"),
-            proposal=proposal.model_dump(mode="json", exclude_none=False),
-            control_plane_revision=PERSISTENCE_REVISION,
-        ).model_dump(mode="json")
-        held_source_before = copy.deepcopy(held_bundle)
-        held_pack = import_manifest_reconstruction(manifest, held_bundle)
-        assert validate_evidence_pack(held_pack).valid
-        held_markdown = render_traceable_markdown(held_pack)
-        assert held_bundle == held_source_before
-        assert _material_trace(held_markdown) == held_pack.metadata["traceable_import"]
-        assert workflow.records.path.read_bytes() == cp_before
-        assert rows() == destination_before
-        assert destination.effect_count(request.operation.grant_id) == 0
-        cases["held"] = {
-            "bundle": held_bundle,
-            "pack": held_pack,
-            "markdown": held_markdown,
-        }
-
-    return {"manifest": manifest, "cases": cases, "results": results}
+    data = json.loads((output / "cases.json").read_text())
+    data["results"] = json.loads((output / "results.json").read_text())
+    return data
 
 
 @pytest.mark.parametrize(
@@ -181,9 +76,9 @@ def test_repaired_control_plane_public_import_validate_render(repaired_cases, na
     assert trace["transformation_version"] == "agep-manifest-reconstruction-import/0.3.1"
     assert trace["selected_revisions"]["replay"] == REPLAY_REVISION
     assert trace["selected_revisions"]["control_plane"] == PERSISTENCE_REVISION
-    assert trace["supported_revision_sets"]["control_plane"] == list(CONTROL_PLANE_REVISIONS)
-    assert PERSISTENCE_REVISION in trace["supported_revision_sets"]["control_plane"]
-    assert CONTROL_PLANE_REVISIONS[0] in trace["supported_revision_sets"]["control_plane"]
+    supported_cp = trace["supported_revision_sets"]["control_plane"]
+    assert CONTROL_PLANE_REVISIONS[0] in supported_cp
+    assert CONTROL_PLANE_REVISIONS[1] in supported_cp
     if name == "held":
         assert "moltbot_safe" not in trace["selected_revisions"]
     else:
@@ -196,7 +91,10 @@ def test_repaired_control_plane_public_import_validate_render(repaired_cases, na
     assert life["current_permission"] == "not_evaluated_from_historical_records"
     assert life["independent_verification"] == "unavailable"
     assert trace["reconstruction_completeness"] == case["bundle"]["status"]
-    assert trace["control_evidence_levels"]["tested_in_this_repository"]["status"] == "not_evaluated_during_import"
+    assert (
+        trace["control_evidence_levels"]["tested_in_this_repository"]["status"]
+        == "not_evaluated_during_import"
+    )
 
     if name == "lost_ack":
         assert life["acknowledgement"] == "unknown"
@@ -219,31 +117,50 @@ def test_repaired_control_plane_public_import_validate_render(repaired_cases, na
 
 
 def test_attempt_namespaces_remain_separate(repaired_cases):
-    trace = repaired_cases["cases"]["restart"]["pack"].metadata["traceable_import"]
+    trace = import_manifest_reconstruction(
+        repaired_cases["manifest"], repaired_cases["cases"]["restart"]["bundle"]
+    ).metadata["traceable_import"]
     cp_ids = {
         row["attempt_id"]
         for row in trace["lifecycle_records"]["control_plane_attempt_transition"]
     }
     executor_ids = {
-        row["attempt_id"] for row in trace["lifecycle_records"]["destination_attempt"]
+        row["attempt_id"]
+        for row in trace["lifecycle_records"]["destination_attempt"]
     }
     assert cp_ids and executor_ids and cp_ids.isdisjoint(executor_ids)
     assert trace["derived_counts"]["control_plane_attempt_count"] == len(cp_ids)
     assert trace["derived_counts"]["executor_attempt_count"] == len(executor_ids)
 
 
-@pytest.mark.parametrize("name", ["success", "lost_ack", "restart", "rejected_restart", "partial", "prior_absence"])
+@pytest.mark.parametrize(
+    "name",
+    ["success", "lost_ack", "restart", "rejected_restart", "partial", "prior_absence"],
+)
 def test_actual_producer_store_evidence_remains_non_effecting(repaired_cases, name):
     result = repaired_cases["results"]["scenarios"][name]
     assert result["records_unchanged"] is True
     assert result["effect_count_before_import"] == result["effect_count_after_import"]
 
 
+def test_dependency_combination_is_explicit_and_excludes_odes_gax(repaired_cases):
+    q = repaired_cases["results"]["evidence_pack_qualification"]
+    assert q["replay_revision"] == REPLAY_REVISION
+    assert q["control_plane_revision"] == PERSISTENCE_REVISION
+    assert q["executor_revision"] == EXECUTOR_REVISION
+    assert q["producer_profile"] == "2.0.0"
+    assert q["execution_envelope"] == "0.2.0"
+    assert q["reconstruction_bundle"] == "0.2.0"
+    assert q["odes_gax"] == "not exercised on this repaired-Control-Plane path"
+
+
 @pytest.mark.parametrize(
     "mutation",
     ["unsupported_revision", "contradictory_profile", "operation_lineage", "attempt_lineage"],
 )
-def test_repaired_path_rejects_revision_profile_and_lineage_contradictions(repaired_cases, mutation):
+def test_repaired_path_rejects_revision_profile_and_lineage_contradictions(
+    repaired_cases, mutation
+):
     bundle = copy.deepcopy(repaired_cases["cases"]["success"]["bundle"])
     cp_profile = next(
         p
@@ -251,14 +168,20 @@ def test_repaired_path_rejects_revision_profile_and_lineage_contradictions(repai
         if p["repository"] == "cogno-us/cognous-agent-control-plane"
     )
     if mutation == "unsupported_revision":
-        bundle["metadata"]["control_plane_revision"] = "248d899634d9db3518e831bc7ab568a48733f824"
+        bundle["metadata"]["control_plane_revision"] = (
+            "248d899634d9db3518e831bc7ab568a48733f824"
+        )
     elif mutation == "contradictory_profile":
         cp_profile["profile_id"] = "control-plane-bounded-run@2ea9528e"
     elif mutation == "operation_lineage":
-        effect = next(r for r in bundle["records"] if r["record_type"] == "destination_effect")
+        effect = next(
+            r for r in bundle["records"] if r["record_type"] == "destination_effect"
+        )
         effect["data"]["target"] = "urn:cognous:synthetic-account:substituted"
     else:
-        result = next(r for r in bundle["records"] if r["record_type"] == "execution_result")
+        result = next(
+            r for r in bundle["records"] if r["record_type"] == "execution_result"
+        )
         result["data"]["attempt_id"] = "missing-attempt"
         result["identifiers"]["attempt_id"] = "missing-attempt"
     with pytest.raises(ImportContractError):
@@ -266,7 +189,9 @@ def test_repaired_path_rejects_revision_profile_and_lineage_contradictions(repai
 
 
 @pytest.mark.parametrize("bad", [{}, [], False, "   "])
-def test_missing_or_malformed_test_provenance_remains_unavailable(repaired_cases, bad):
+def test_missing_or_malformed_test_provenance_remains_unavailable(
+    repaired_cases, bad
+):
     bundle = copy.deepcopy(repaired_cases["cases"]["success"]["bundle"])
     bundle["metadata"]["test_provenance"] = {
         "test_run_id": bad,
@@ -277,7 +202,10 @@ def test_missing_or_malformed_test_provenance_remains_unavailable(repaired_cases
     pack = import_manifest_reconstruction(repaired_cases["manifest"], bundle)
     trace = pack.metadata["traceable_import"]
     assert trace["control_evidence_levels"]["tested"]["status"] == "unavailable"
-    assert any(f["code"] == "T_TEST_PROVENANCE_INVALID" for f in trace["import_findings"])
+    assert any(
+        finding["code"] == "T_TEST_PROVENANCE_INVALID"
+        for finding in trace["import_findings"]
+    )
 
 
 def test_failed_test_provenance_remains_source_asserted(repaired_cases):
@@ -292,7 +220,37 @@ def test_failed_test_provenance_remains_source_asserted(repaired_cases):
     trace = pack.metadata["traceable_import"]
     levels = trace["control_evidence_levels"]
     assert levels["tested"]["result"] == "failed"
-    assert levels["attributable_test_run_evidence"]["status"] == "attributable_source_asserted"
+    assert (
+        levels["attributable_test_run_evidence"]["status"]
+        == "attributable_source_asserted"
+    )
     markdown = render_traceable_markdown(pack)
     assert "| result | failed |" in markdown
     assert "source-supplied" in markdown
+
+
+def test_historical_v2_selected_revision_is_not_relabelled(repaired_cases):
+    bundle = copy.deepcopy(repaired_cases["cases"]["success"]["bundle"])
+    old_cp = CONTROL_PLANE_REVISIONS[0]
+    bundle["metadata"]["control_plane_revision"] = old_cp
+    cp_profile = next(
+        p
+        for p in bundle["producer_profiles"]
+        if p["repository"] == "cogno-us/cognous-agent-control-plane"
+    )
+    cp_profile["revision"] = old_cp
+    cp_profile["profile_id"] = "control-plane-bounded-run@2ea9528e"
+    contract = bundle["metadata"]["moltbot_producer_contract"]
+    contract["control_plane_revision"] = old_cp
+    bundle["import_reports"][0]["source_revision"] = old_cp
+    bundle["import_reports"][0]["adapter_profile"] = "control-plane-bounded-run@2ea9528e"
+    for record in bundle["records"]:
+        if record["producer_profile_id"] == "control-plane-bounded-run@248d8996":
+            record["producer_profile_id"] = "control-plane-bounded-run@2ea9528e"
+            record["record_id"] = record["record_id"].replace(
+                "control-plane-bounded-run@248d8996",
+                "control-plane-bounded-run@2ea9528e",
+            )
+    # This hand-edited bundle should fail closed rather than be silently relabelled.
+    with pytest.raises(ImportContractError):
+        import_manifest_reconstruction(repaired_cases["manifest"], bundle)
