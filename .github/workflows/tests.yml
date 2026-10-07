@@ -159,3 +159,70 @@ jobs:
         with:
           name: agep-producer-v2-${{ github.sha }}-py${{ matrix.python-version }}
           path: /tmp/agep-producer-v2/*
+
+      # Current Replay-only compatibility path for the accepted Control Plane
+      # persistence repair. Existing ODES/GAX pins above remain historical and
+      # are not evidence for this repaired-Control-Plane combination.
+      - name: Checkout accepted Replay persistence compatibility
+        uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-agent-replay-bundle
+          ref: 043830b56595cecddfa65c064afd1c0b95e64792
+          path: upstream/replay-store
+
+      - name: Checkout accepted Control Plane persistence repair
+        uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-agent-control-plane
+          ref: 248d899634d9db3518e831bc7ab568a48733f825
+          path: upstream/cp-v2-store
+
+      - name: Verify persistence compatibility pins
+        run: |
+          test "$(git -C upstream/replay-store rev-parse HEAD)" = "043830b56595cecddfa65c064afd1c0b95e64792"
+          test "$(git -C upstream/cp-v2 rev-parse HEAD)" = "2ea9528eeb87e14ff10f05de06473122b9df540f"
+          test "$(git -C upstream/cp-v2-store rev-parse HEAD)" = "248d899634d9db3518e831bc7ab568a48733f825"
+          test "$(git -C upstream/executor-v2 rev-parse HEAD)" = "177354e959cc78c59c1a776f018cfbfbf28c927b"
+
+      - name: Install accepted Replay persistence validator
+        run: pip install -e upstream/replay-store
+
+      - name: Focused Control Plane store compatibility tests
+        env:
+          AGEP_ACCEPTED_REPLAY_ROOT: upstream/replay-store
+          AGEP_PERSISTENCE_CONTROL_PLANE_ROOT: upstream/cp-v2-store
+          AGEP_ACCEPTED_EXECUTOR_ROOT: upstream/executor-v2
+          AGEP_MANIFEST_FIXTURE: upstream/manifest/examples/refund_integration_v1_1.manifest.json
+        run: pytest -q tests/test_control_plane_store_compatibility.py
+
+      - name: Full suite under accepted Replay persistence validator
+        env:
+          UPSTREAM_MANIFEST_EXAMPLE: upstream/manifest/examples/refund_integration_v1_1.manifest.json
+          UPSTREAM_REPLAY_SUCCESS_EXAMPLE: upstream/replay/examples/bounded_success_reconstruction_v0_2.json
+          UPSTREAM_REPLAY_LOST_ACK_EXAMPLE: upstream/replay/examples/bounded_lost_ack_reconstruction_v0_2.json
+          UPSTREAM_CONTROL_PLANE_ROOT: upstream/control-plane
+          UPSTREAM_MOLTBOT_SAFE_ROOT: upstream/moltbot-safe
+          UPSTREAM_GAX_ROOT: upstream/gax-imx
+          AGEP_PINNED_REPLAY_ROOT: upstream/replay
+          AGEP_PINNED_CONTROL_PLANE_ROOT: upstream/control-plane
+          AGEP_PINNED_MOLTBOT_ROOT: upstream/moltbot-safe
+          AGEP_PINNED_MANIFEST_FIXTURE: upstream/manifest/examples/refund_integration_v1_1.manifest.json
+          AGEP_ACCEPTED_REPLAY_ROOT: upstream/replay-store
+          AGEP_PERSISTENCE_CONTROL_PLANE_ROOT: upstream/cp-v2-store
+          AGEP_ACCEPTED_EXECUTOR_ROOT: upstream/executor-v2
+          AGEP_MANIFEST_FIXTURE: upstream/manifest/examples/refund_integration_v1_1.manifest.json
+        run: pytest --ignore=tests/test_producer_v2.py
+
+      - name: Check examples after persistence compatibility
+        run: agep check-examples
+
+      - name: CLI import validate render for repaired Control Plane output
+        env:
+          ARB_V2_CONTROL_PLANE_ROOT: ${{ github.workspace }}/upstream/cp-v2-store
+          ARB_V2_MOLTBOT_ROOT: ${{ github.workspace }}/upstream/executor-v2
+          ARB_PINNED_MANIFEST_FIXTURE: ${{ github.workspace }}/upstream/manifest/examples/refund_integration_v1_1.manifest.json
+        run: |
+          python upstream/replay-store/scripts/generate_producer_v2_examples.py --output-dir /tmp/agep-store-replay
+          agep import --manifest upstream/manifest/examples/refund_integration_v1_1.manifest.json --reconstruction /tmp/agep-store-replay/producer_v2_success.json --out /tmp/agep-store.json --render /tmp/agep-store.md
+          agep validate /tmp/agep-store.json
+          agep render /tmp/agep-store.json --traceable >/tmp/agep-store-trace.md
