@@ -1097,12 +1097,18 @@ def import_manifest_reconstruction(manifest: dict[str, Any], reconstruction_bund
         selected = PERSISTENCE_REVISIONS if _is_persistence_v2(bundle) else V2_REVISIONS
         trace["supported_revisions"].update(selected)
         trace["supported_revision_sets"] = deepcopy(SUPPORTED_REVISION_SETS)
+        selected_profiles = {
+            p.get("repository"): p.get("revision")
+            for p in bundle.get("producer_profiles", [])
+            if isinstance(p, dict) and p.get("repository") and p.get("revision")
+        }
         trace["selected_revisions"] = {
             "manifest": MANIFEST_REVISION,
             "replay": selected["replay"],
             "control_plane": selected_control_plane,
-            "moltbot_safe": V2_REVISIONS["moltbot_safe"],
         }
+        if selected_profiles.get("cogno-us/moltbot-safe"):
+            trace["selected_revisions"]["moltbot_safe"] = selected_profiles["cogno-us/moltbot-safe"]
         trace["replay_semantic_validation"]["required_revision"] = selected["replay"]
         trace["input_artifacts"][1]["trusted_revision"] = selected["replay"]
         trace["retained_sources"] = {"manifest": manifest, "reconstruction_bundle": bundle}
