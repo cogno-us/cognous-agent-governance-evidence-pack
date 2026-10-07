@@ -22,28 +22,28 @@ jobs:
       - name: Checkout pinned Manifest
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/cognous-agent-action-manifest
+          repository: cogno-us/cognous-action-manifest
           ref: 46c950bed37fe3812000895430bc0312d29e37ce
           path: upstream/manifest
 
       - name: Checkout pinned Replay
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/cognous-agent-replay-bundle
+          repository: cogno-us/cognous-replay-bundle
           ref: f63ce914504dd06813c4ccd199b0570dbd8dd427
           path: upstream/replay
 
       - name: Checkout pinned Control Plane
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/cognous-agent-control-plane
+          repository: cogno-us/cognous-control-plane
           ref: 283500652d47a692fb0b99a1172a6d5faffbd9a7
           path: upstream/control-plane
 
       - name: Checkout pinned Moltbot Safe
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/moltbot-safe
+          repository: cogno-us/cognous-execution-runtime
           ref: 1d308faf664c504b6e310db3c7a310153ef7b067
           path: upstream/moltbot-safe
 
@@ -58,7 +58,7 @@ jobs:
       - name: Checkout accepted GAX IMX reference
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/alvorada
+          repository: cogno-us/cognous-governed-exchange
           ref: 6bcde026a804c7377f5e39f57ca6dd00b3c3292d
           path: upstream/gax-imx
 
@@ -114,7 +114,7 @@ jobs:
       - name: Checkout accepted Replay
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/cognous-agent-replay-bundle
+          repository: cogno-us/cognous-replay-bundle
           ref: 274543f1cd7171784a923a8e37015017a0d8bc9d
           path: upstream/replay-v2
 
@@ -128,14 +128,14 @@ jobs:
       - name: Checkout accepted Control Plane
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/cognous-agent-control-plane
+          repository: cogno-us/cognous-control-plane
           ref: 2ea9528eeb87e14ff10f05de06473122b9df540f
           path: upstream/cp-v2
 
       - name: Checkout accepted executor
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/moltbot-safe
+          repository: cogno-us/cognous-execution-runtime
           ref: 177354e959cc78c59c1a776f018cfbfbf28c927b
           path: upstream/executor-v2
 
@@ -166,14 +166,14 @@ jobs:
       - name: Checkout accepted Replay persistence compatibility
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/cognous-agent-replay-bundle
+          repository: cogno-us/cognous-replay-bundle
           ref: 043830b56595cecddfa65c064afd1c0b95e64792
           path: upstream/replay-store
 
       - name: Checkout accepted Control Plane persistence repair
         uses: actions/checkout@v4
         with:
-          repository: cogno-us/cognous-agent-control-plane
+          repository: cogno-us/cognous-control-plane
           ref: 248d899634d9db3518e831bc7ab568a48733f825
           path: upstream/cp-v2-store
 

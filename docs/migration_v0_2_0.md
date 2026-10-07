@@ -18,8 +18,8 @@ agep import --manifest <manifest.json> --reconstruction <bundle.json> --out <pac
 
 Supported inputs:
 
-- Manifest v1.1 from `cogno-us/cognous-agent-action-manifest` at `46c950bed37fe3812000895430bc0312d29e37ce`.
-- Reconstruction Bundle 0.2.0 from `cogno-us/cognous-agent-replay-bundle` at `f12648313cedc2cf06145d397fa56cdea18cc800`.
+- Manifest v1.1 from `cogno-us/cognous-action-manifest` at `46c950bed37fe3812000895430bc0312d29e37ce`.
+- Reconstruction Bundle 0.2.0 from `cogno-us/cognous-replay-bundle` at `f12648313cedc2cf06145d397fa56cdea18cc800`.
 
 ## New rendering path
 

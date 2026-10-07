@@ -25,8 +25,8 @@ A public reference schema, validator, and markdown renderer for AI-agent governa
 ## Getting started
 
 ```bash
-git clone https://github.com/cogno-us/cognous-agent-governance-evidence-pack.git
-cd cognous-agent-governance-evidence-pack
+git clone https://github.com/cogno-us/cognous-governance-evidence-pack.git
+cd cognous-governance-evidence-pack
 pip install -e ".[dev]"
 pytest
 ```
