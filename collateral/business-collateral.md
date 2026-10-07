@@ -1,4 +1,4 @@
-# Agent Governance Evidence Pack — Business Collateral
+# Cognous Governance Evidence Pack — Business Collateral
 
 ## 1. Executive Summary
 
