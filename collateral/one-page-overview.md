@@ -1,4 +1,4 @@
-# Agent Governance Evidence Pack — One-Page Overview
+# Cognous Governance Evidence Pack — One-Page Overview
 
 ## Purpose
 
