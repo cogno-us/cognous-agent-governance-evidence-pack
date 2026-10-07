@@ -181,3 +181,36 @@ The accepted Alvorada/GAX checkout at
 `6bcde026a804c7377f5e39f57ca6dd00b3c3292d` is the supported retained-artifact
 compatibility baseline for this integration test. Deferred Alvorada PR #2 is
 not consumed.
+
+## Control Plane persistence-repair compatibility
+
+The accepted Replay compatibility path additionally supports:
+
+- Replay: `043830b56595cecddfa65c064afd1c0b95e64792`
+- Control Plane selected revision:
+  `248d899634d9db3518e831bc7ab568a48733f825`
+- previously supported Control Plane v2 revision:
+  `2ea9528eeb87e14ff10f05de06473122b9df540f`
+- executor producer 2.0.0:
+  `177354e959cc78c59c1a776f018cfbfbf28c927b`
+- Execution Envelope 0.2.0
+- Reconstruction Bundle 0.2.0
+
+For this path, `selected_revisions` records the producer revisions actually
+attributed by the supplied Reconstruction Bundle and the Replay validator used
+for import. `supported_revision_sets` separately records revisions the importer
+can accept. The importer validates the Control Plane revision/profile pair
+against Replay's exported compatibility mapping and rejects unsupported or
+contradictory attribution.
+
+The lifecycle surface continues to keep Control Plane and executor attempt
+namespaces separate. Historical rejection may coexist with a later accepted
+applied observation; acknowledgement, destination observation, reconstruction
+completeness, retry permission, current permission and independent verification
+remain separate dimensions. An accepted `observed_absent` reconciliation with
+`retry_eligible: false` remains explicit and does not create retry permission.
+
+Existing ODES and GAX integrations exercise their own previously accepted pins.
+They do not validate this repaired-Control-Plane combination. Qualification of a
+future ODES/GAX path against this combination is pending those components'
+separately accepted compatibility updates.
