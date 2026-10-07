@@ -60,11 +60,14 @@ PERSISTENCE_REVISIONS = {
     "control_plane": CONTROL_PLANE_V2_PERSISTENCE_REVISION,
     "moltbot_safe": V2_REVISIONS["moltbot_safe"],
 }
+MERGED_REVISIONS = {"manifest": MANIFEST_REVISION, "replay": "459e4ba62fca49364aebb0050cd5fb2dd5a71bfa", "control_plane": "d3dadee70bd319812b207389ab1e0f6efe511916", "moltbot_safe": "c3c3ee7188b9367cf70b08074b9c40a5c70c94ac"}
+MERGED_TRANSFORMATION_VERSION = "agep-manifest-reconstruction-import/0.3.2"
+ALL_CONTROL_PLANE_V2_REVISIONS = (*CONTROL_PLANE_V2_REVISIONS, MERGED_REVISIONS["control_plane"])
 SUPPORTED_REVISION_SETS = {
     "manifest": [MANIFEST_REVISION],
-    "replay": [REPLAY_REVISION, V2_REVISIONS["replay"], ACCEPTED_REPLAY_PERSISTENCE_REVISION],
-    "control_plane": [CONTROL_PLANE_REVISION, *CONTROL_PLANE_V2_REVISIONS],
-    "moltbot_safe": [LEGACY_MOLTBOT_SAFE_REVISION, MOLTBOT_SAFE_REVISION, V2_REVISIONS["moltbot_safe"]],
+    "replay": [REPLAY_REVISION, V2_REVISIONS["replay"], ACCEPTED_REPLAY_PERSISTENCE_REVISION, MERGED_REVISIONS["replay"]],
+    "control_plane": [CONTROL_PLANE_REVISION, *ALL_CONTROL_PLANE_V2_REVISIONS],
+    "moltbot_safe": [LEGACY_MOLTBOT_SAFE_REVISION, MOLTBOT_SAFE_REVISION, V2_REVISIONS["moltbot_safe"], MERGED_REVISIONS["moltbot_safe"]],
 }
 PRODUCER_REVISIONS = {"1.0.0": MOLTBOT_SAFE_REVISION, "2.0.0": V2_REVISIONS["moltbot_safe"]}
 
@@ -75,14 +78,18 @@ def _selected_control_plane_revision(bundle: dict[str, Any]) -> str:
 
 
 def _is_v2(bundle: dict[str, Any]) -> bool:
-    return _selected_control_plane_revision(bundle) in CONTROL_PLANE_V2_REVISIONS
+    return _selected_control_plane_revision(bundle) in ALL_CONTROL_PLANE_V2_REVISIONS
+
+
+def _is_merged_v2(bundle: dict[str, Any]) -> bool:
+    return _selected_control_plane_revision(bundle) == MERGED_REVISIONS["control_plane"]
 
 
 def _is_persistence_v2(bundle: dict[str, Any]) -> bool:
-    return _selected_control_plane_revision(bundle) == CONTROL_PLANE_V2_PERSISTENCE_REVISION
+    return _selected_control_plane_revision(bundle) in (CONTROL_PLANE_V2_PERSISTENCE_REVISION, MERGED_REVISIONS["control_plane"])
 
 
-def _accepted_replay_v2_profiles(*, require_persistence: bool = False) -> dict[str, str]:
+def _accepted_replay_v2_profiles(*, require_persistence: bool = False, require_merged: bool = False) -> dict[str, str]:
     try:
         from agent_replay_bundle.importers import (
             BOUNDED_V2_PROFILE,
@@ -110,14 +117,22 @@ def _accepted_replay_v2_profiles(*, require_persistence: bool = False) -> dict[s
     if replay_persistence_revision != CONTROL_PLANE_V2_PERSISTENCE_REVISION:
         raise ImportContractError("accepted Replay persistence revision contradicts Evidence Pack compatibility contract")
     mapping[replay_persistence_revision] = BOUNDED_V2_PERSISTENCE_PROFILE
+    if require_merged:
+        try:
+            from agent_replay_bundle.importers import (CONTROL_PLANE_MERGED_REVISION, MOLTBOT_MERGED_REVISION, BOUNDED_MERGED_PROFILE)
+        except ImportError as exc:
+            raise ImportContractError("accepted merged Replay mapping unavailable") from exc
+        if CONTROL_PLANE_MERGED_REVISION != MERGED_REVISIONS["control_plane"] or MOLTBOT_MERGED_REVISION != MERGED_REVISIONS["moltbot_safe"]:
+            raise ImportContractError("merged Replay revision mapping contradicts Evidence Pack contract")
+        mapping[CONTROL_PLANE_MERGED_REVISION] = BOUNDED_MERGED_PROFILE
     return mapping
 
 
 REQUIRED_REPOS = {
     "cogno-us/cognous-agent-action-manifest": {MANIFEST_REVISION},
-    "cogno-us/cognous-agent-replay-bundle": {REPLAY_REVISION, V2_REVISIONS["replay"], ACCEPTED_REPLAY_PERSISTENCE_REVISION},
-    "cogno-us/cognous-agent-control-plane": {CONTROL_PLANE_REVISION, *CONTROL_PLANE_V2_REVISIONS},
-    "cogno-us/moltbot-safe": {LEGACY_MOLTBOT_SAFE_REVISION, MOLTBOT_SAFE_REVISION, V2_REVISIONS["moltbot_safe"]},
+    "cogno-us/cognous-agent-replay-bundle": {REPLAY_REVISION, V2_REVISIONS["replay"], ACCEPTED_REPLAY_PERSISTENCE_REVISION, MERGED_REVISIONS["replay"]},
+    "cogno-us/cognous-agent-control-plane": {CONTROL_PLANE_REVISION, *ALL_CONTROL_PLANE_V2_REVISIONS},
+    "cogno-us/moltbot-safe": {LEGACY_MOLTBOT_SAFE_REVISION, MOLTBOT_SAFE_REVISION, V2_REVISIONS["moltbot_safe"], MERGED_REVISIONS["moltbot_safe"]},
     "cogno-us/constitutional-governance-for-institutions": {ALVORADA_REVISION},
 }
 EXECUTION_TYPES = {"execution_envelope", "execution_result", "destination_attempt", "destination_attempt_event", "destination_effect", "executor_observation", "moltbot_attributed_control_plane_attempt"}
@@ -342,8 +357,8 @@ def _validate_headers(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple
         revision = profile.get("revision")
         if repo in REQUIRED_REPOS and revision not in ({None} | REQUIRED_REPOS[repo]):
             raise ImportContractError(f"producer_profiles[{index}].revision for {repo} conflicts with pinned supported revision")
-        if repo == "cogno-us/moltbot-safe" and revision in PRODUCER_REVISIONS.values():
-            version = next(v for v, rev in PRODUCER_REVISIONS.items() if rev == revision)
+        if repo == "cogno-us/moltbot-safe" and revision in (*PRODUCER_REVISIONS.values(), MERGED_REVISIONS["moltbot_safe"]):
+            version = "2.0.0" if revision == MERGED_REVISIONS["moltbot_safe"] else next(v for v, rev in PRODUCER_REVISIONS.items() if rev == revision)
             if profile.get("format_version") != version:
                 raise ImportContractError(f"versioned Moltbot producer revision requires executor producer profile {version}")
             expected_profile = f"moltbot-safe-executor-producer-{version}@{revision[:8]}"
@@ -351,8 +366,8 @@ def _validate_headers(manifest: dict[str, Any], bundle: dict[str, Any]) -> tuple
                 raise ImportContractError(
                     "versioned Moltbot producer revision requires accepted Replay producer profile identity"
                 )
-        if repo == "cogno-us/cognous-agent-control-plane" and revision in CONTROL_PLANE_V2_REVISIONS:
-            expected_profile = _accepted_replay_v2_profiles(require_persistence=revision == CONTROL_PLANE_V2_PERSISTENCE_REVISION)[revision]
+        if repo == "cogno-us/cognous-agent-control-plane" and revision in ALL_CONTROL_PLANE_V2_REVISIONS:
+            expected_profile = _accepted_replay_v2_profiles(require_persistence=revision in (CONTROL_PLANE_V2_PERSISTENCE_REVISION, MERGED_REVISIONS["control_plane"]), require_merged=revision == MERGED_REVISIONS["control_plane"])[revision]
             if profile.get("profile_id") != expected_profile:
                 raise ImportContractError(
                     "Control Plane producer profile identity contradicts accepted Replay revision/profile mapping"
@@ -412,7 +427,7 @@ def _retained_replay_inputs(bundle: dict[str, Any]) -> tuple[dict[str, Any], dic
             if contract.get("interface_profile_id") != MOLTBOT_PRODUCER_PROFILE_ID:
                 raise ImportContractError("unsupported executor producer profile id in Replay metadata")
             version = contract.get("interface_profile_version")
-            revision = PRODUCER_REVISIONS.get(version)
+            revision = MERGED_REVISIONS["moltbot_safe"] if _is_merged_v2(bundle) and version == "2.0.0" else PRODUCER_REVISIONS.get(version)
             if revision is None:
                 raise ImportContractError("unsupported executor producer profile version in Replay metadata")
             if contract.get("repository_revision") != revision:
@@ -496,10 +511,10 @@ def _run_pinned_replay_validator(bundle: dict[str, Any]) -> str:
         raise ImportContractError(f"pinned Replay semantic validator unavailable; install cogno-us/cognous-agent-replay-bundle at {REPLAY_REVISION}") from exc
     try:
         revision = _selected_control_plane_revision(bundle)
-        if revision not in {CONTROL_PLANE_REVISION, *CONTROL_PLANE_V2_REVISIONS}:
+        if revision not in {CONTROL_PLANE_REVISION, *ALL_CONTROL_PLANE_V2_REVISIONS}:
             raise ImportContractError("unsupported Control Plane revision")
         if _is_v2(bundle):
-            replay_profiles = _accepted_replay_v2_profiles(require_persistence=revision == CONTROL_PLANE_V2_PERSISTENCE_REVISION)
+            replay_profiles = _accepted_replay_v2_profiles(require_persistence=revision in (CONTROL_PLANE_V2_PERSISTENCE_REVISION, MERGED_REVISIONS["control_plane"]), require_merged=revision == MERGED_REVISIONS["control_plane"])
             cp_profile = next(
                 (p for p in bundle.get("producer_profiles", [])
                  if isinstance(p, dict) and p.get("repository") == "cogno-us/cognous-agent-control-plane"),
@@ -512,7 +527,8 @@ def _run_pinned_replay_validator(bundle: dict[str, Any]) -> str:
             contract = (bundle.get("metadata") or {}).get("moltbot_producer_contract")
             if isinstance(contract, dict):
                 compatible = contract.get("compatible_control_plane_revisions")
-                if compatible is not None and compatible != list(CONTROL_PLANE_V2_REVISIONS):
+                expected_compatible = [MERGED_REVISIONS["control_plane"]] if _is_merged_v2(bundle) else list(CONTROL_PLANE_V2_REVISIONS)
+                if compatible is not None and compatible != expected_compatible:
                     raise ImportContractError("executor producer compatibility set contradicts accepted Replay mapping")
                 if contract.get("control_plane_revision") not in (None, revision):
                     raise ImportContractError("executor producer contract Control Plane revision contradicts selected revision")
@@ -1092,7 +1108,7 @@ def import_manifest_reconstruction(manifest: dict[str, Any], reconstruction_bund
     generated = bundle.get("generated_at") or (bundle.get("metadata", {}) if isinstance(bundle.get("metadata"), dict) else {}).get("source_generated_at") or generated_at or "unavailable"
     if generated == "unavailable": findings.append({"code": "T_GENERATED_AT_UNAVAILABLE", "severity": "warning", "path": "reconstruction_bundle.generated_at", "message": "No source generation timestamp supplied; importer did not invent one."})
     bundle_id = str(bundle.get("bundle_id") or bundle.get("reconstruction_bundle_id") or bundle.get("run_id") or "unknown_bundle")
-    transformation = PERSISTENCE_TRANSFORMATION_VERSION if _is_persistence_v2(bundle) else (TRANSFORMATION_VERSION if _is_v2(bundle) else LEGACY_TRANSFORMATION_VERSION)
+    transformation = MERGED_TRANSFORMATION_VERSION if _is_merged_v2(bundle) else PERSISTENCE_TRANSFORMATION_VERSION if _is_persistence_v2(bundle) else (TRANSFORMATION_VERSION if _is_v2(bundle) else LEGACY_TRANSFORMATION_VERSION)
     pack_id = "agep-" + sha256({"manifest": sha256(manifest), "bundle": sha256(bundle), "transformation": transformation})[7:23]
     redacted, redaction_source = _redaction_status(bundle, findings)
     evidence_levels = _evidence_levels(bundle, replay_validator_status, findings)
@@ -1101,7 +1117,7 @@ def import_manifest_reconstruction(manifest: dict[str, Any], reconstruction_bund
     if _is_v2(bundle):
         trace = pack.metadata["traceable_import"]
         selected_control_plane = _selected_control_plane_revision(bundle)
-        selected = PERSISTENCE_REVISIONS if _is_persistence_v2(bundle) else V2_REVISIONS
+        selected = MERGED_REVISIONS if _is_merged_v2(bundle) else PERSISTENCE_REVISIONS if _is_persistence_v2(bundle) else V2_REVISIONS
         trace["supported_revisions"].update(selected)
         if _is_persistence_v2(bundle):
             trace["supported_revision_sets"] = deepcopy(SUPPORTED_REVISION_SETS)
