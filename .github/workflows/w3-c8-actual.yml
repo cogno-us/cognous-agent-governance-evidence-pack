@@ -1,0 +1,51 @@
+name: W3 C8 actual source-to-consumer qualification
+on:
+  push:
+    branches: ["w3/c8-lineage-projection"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  actual-c8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-execution-runtime
+          ref: ad9d8ffffb00aabfc4e1c53708ff00b59e0dbb4f
+          path: upstream/runtime-c8
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-control-plane
+          ref: e66e5f163c5d5c112ff345a2f332b4c3893ee183
+          path: upstream/control
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-replay-bundle
+          ref: 7536e9ef124d2e106f17012024e05a84a31a03f4
+          path: upstream/replay-c8
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify pinned source and consumer revisions
+        run: |
+          test "$(git -C upstream/runtime-c8 rev-parse HEAD)" = "ad9d8ffffb00aabfc4e1c53708ff00b59e0dbb4f"
+          test "$(git -C upstream/control rev-parse HEAD)" = "e66e5f163c5d5c112ff345a2f332b4c3893ee183"
+          test "$(git -C upstream/replay-c8 rev-parse HEAD)" = "7536e9ef124d2e106f17012024e05a84a31a03f4"
+      - name: Install accepted authority and candidate consumers
+        run: |
+          python -m pip install -e upstream/control
+          python -m pip install -e upstream/replay-c8
+          python -m pip install -e ".[dev]"
+      - name: Run actual local source-to-consumer C8 qualification
+        env:
+          PYTHONPATH: upstream/runtime-c8:upstream/runtime-c8/tests
+        run: python scripts/w3_c8_actual_source.py output/c8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: w3-c8-source-record-lineage
+          path: output/c8/
+          if-no-files-found: warn
