@@ -5,6 +5,8 @@ derived from accepted W2 test expectations, not live destination export.
 """
 import pytest
 
+pytest.importorskip("agent_replay_bundle.w3_atomic_import", reason="requires W3 P2 candidate Replay")
+
 from agent_replay_bundle.w3_atomic_import import (
     W2_RUNTIME_REVISION, import_w2_atomic_failure_history,
     AtomicEvidenceContractError,
