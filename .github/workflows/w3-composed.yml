@@ -1,0 +1,55 @@
+name: W3 P4 composed candidate
+on:
+  push:
+    branches: ["w3/p3-runtime-evidence"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  composed:
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-replay-bundle
+          ref: 6c08f797e204e316c74bbf7bb34ed5721c19a0c7
+          path: upstream/w3-replay
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-execution-runtime
+          ref: bd398f16c4cee329d2d0213afc3236ca9232d29e
+          path: upstream/w2-runtime
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-control-plane
+          ref: e66e5f163c5d5c112ff345a2f332b4c3893ee183
+          path: upstream/w1-control
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-action-manifest
+          ref: 8d1572d4f926c968a8704cb912a6e9d49166f74a
+          path: upstream/w1-manifest
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Verify accepted producer and candidate Replay pins
+        run: |
+          test "$(git -C upstream/w2-runtime rev-parse HEAD)" = "bd398f16c4cee329d2d0213afc3236ca9232d29e"
+          test "$(git -C upstream/w1-control rev-parse HEAD)" = "e66e5f163c5d5c112ff345a2f332b4c3893ee183"
+          test "$(git -C upstream/w1-manifest rev-parse HEAD)" = "8d1572d4f926c968a8704cb912a6e9d49166f74a"
+          test "$(git -C upstream/w3-replay rev-parse HEAD)" = "6c08f797e204e316c74bbf7bb34ed5721c19a0c7"
+      - name: Install candidate consumers
+        run: |
+          python -m pip install -e upstream/w3-replay
+          python -m pip install -e ".[dev]"
+      - name: P2/P3/P4 candidate and historical tests
+        run: |
+          pytest -q tests/test_w3_atomic_evidence.py tests/test_w3_composed_candidate.py
+          pytest -q upstream/w3-replay/tests/test_w3_atomic_import.py upstream/w3-replay/tests/test_w3_compatibility_matrix.py
+      - name: Historical Evidence suite
+        run: pytest -q tests/test_models.py tests/test_importer.py tests/test_validator.py
