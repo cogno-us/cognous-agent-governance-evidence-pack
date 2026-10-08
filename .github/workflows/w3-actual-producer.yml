@@ -49,6 +49,12 @@ jobs:
         env:
           PYTHONPATH: upstream/w2-runtime:upstream/w2-runtime/tests
         run: python scripts/w3_capture_accepted_producer.py output/w3
+      - name: Execute accepted W1 tenant and W2 stop/recovery source tests
+        env:
+          PYTHONPATH: upstream/w2-runtime:upstream/w2-runtime/tests
+        run: |
+          pytest -q upstream/w2-runtime/tests/test_w2_refusal_history.py upstream/w2-runtime/tests/test_w2_stop_recovery.py --junitxml=output/w3/accepted-runtime-tests.xml
+          pytest -q upstream/w2-runtime/tests/test_local_authority_effect.py -k tenant --junitxml=output/w3/accepted-tenant-tests.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
