@@ -72,6 +72,28 @@ def run(output:Path):
         try:import_c8_source(authority=authority,stop=changed_stop)
         except C8LineageError:pass
         else:raise AssertionError("cross-effect stop accepted")
+        # Additional source-derived authority and C7 omissions/mutations.
+        for table,field,value in (
+            ("authority_grants_v1","revision","stale-grant"),
+            ("authority_approvals_v1","proposal_commitment",""),
+            ("authority_policies_v1","version","stale-policy"),
+            ("authority_policies_v1","tenant_id","wrong-tenant"),
+        ):
+            mutant=json.loads(json.dumps(authority))
+            mutant["rows"][table][0][field]=value
+            try:import_c8_source(authority=mutant,stop=stop)
+            except C8LineageError:pass
+            else:raise AssertionError(f"invalid {table}.{field} accepted")
+        missing_stop=json.loads(json.dumps(stop))
+        missing_stop["events"].pop(3)
+        partial=import_c8_source(authority=authority,stop=missing_stop)
+        assert partial.status=="reconstruction_partial"
+        assert any(f.code=="C8-STOP" for f in partial.import_reports[0].findings)
+        reordered=json.loads(json.dumps(stop))
+        reordered["events"][1]["sequence"]=1
+        try:import_c8_source(authority=authority,stop=reordered)
+        except C8LineageError:pass
+        else:raise AssertionError("stop sequence collision accepted")
         output.mkdir(parents=True,exist_ok=True)
         for name,value in (("authority.json",authority),("stop.json",stop),
                            ("reconstruction.json",bundle.model_dump(mode="json")),
