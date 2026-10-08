@@ -1,0 +1,63 @@
+name: W3 actual producer export qualification
+on:
+  push:
+    branches: ["w3/p3-runtime-evidence"]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  actual-producer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-replay-bundle
+          ref: 4299e1b16cb5b80a32930ef7659a216b6baabc45
+          path: upstream/w3-replay
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-execution-runtime
+          ref: bd398f16c4cee329d2d0213afc3236ca9232d29e
+          path: upstream/w2-runtime
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-control-plane
+          ref: e66e5f163c5d5c112ff345a2f332b4c3893ee183
+          path: upstream/w1-control
+      - uses: actions/checkout@v4
+        with:
+          repository: cogno-us/cognous-action-manifest
+          ref: 8d1572d4f926c968a8704cb912a6e9d49166f74a
+          path: upstream/w1-manifest
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Verify producer and consumer pins
+        run: |
+          test "$(git -C upstream/w3-replay rev-parse HEAD)" = "4299e1b16cb5b80a32930ef7659a216b6baabc45"
+          test "$(git -C upstream/w2-runtime rev-parse HEAD)" = "bd398f16c4cee329d2d0213afc3236ca9232d29e"
+          test "$(git -C upstream/w1-control rev-parse HEAD)" = "e66e5f163c5d5c112ff345a2f332b4c3893ee183"
+          test "$(git -C upstream/w1-manifest rev-parse HEAD)" = "8d1572d4f926c968a8704cb912a6e9d49166f74a"
+      - name: Install accepted producer and consumer packages
+        run: |
+          python -m pip install -e upstream/w1-control
+          python -m pip install -e upstream/w3-replay
+          python -m pip install -e ".[dev]"
+      - name: Execute actual accepted producer and composed consumers
+        env:
+          PYTHONPATH: upstream/w2-runtime:upstream/w2-runtime/tests
+        run: python scripts/w3_capture_accepted_producer.py output/w3
+      - name: Execute accepted W1 tenant and W2 stop/recovery source tests
+        env:
+          PYTHONPATH: upstream/w2-runtime:upstream/w2-runtime/tests
+        run: |
+          pytest -q upstream/w2-runtime/tests/test_w2_refusal_history.py upstream/w2-runtime/tests/test_w2_stop_recovery.py --junitxml=output/w3/accepted-runtime-tests.xml
+          pytest -q upstream/w2-runtime/tests/test_local_authority_effect.py -k tenant --junitxml=output/w3/accepted-tenant-tests.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: w3-actual-producer-cases
+          path: output/w3
+          if-no-files-found: warn
