@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: cogno-us/cognous-replay-bundle
-          ref: d09ad81a9520844e2a152492507c215abe1012e6
+          ref: b22c25201e8d47860388cee0941a3fbed043cd41
           path: upstream/replay-c8
       - uses: actions/setup-python@v5
         with:
@@ -33,7 +33,7 @@ jobs:
         run: |
           test "$(git -C upstream/runtime-c8 rev-parse HEAD)" = "ad9d8ffffb00aabfc4e1c53708ff00b59e0dbb4f"
           test "$(git -C upstream/control rev-parse HEAD)" = "e66e5f163c5d5c112ff345a2f332b4c3893ee183"
-          test "$(git -C upstream/replay-c8 rev-parse HEAD)" = "d09ad81a9520844e2a152492507c215abe1012e6"
+          test "$(git -C upstream/replay-c8 rev-parse HEAD)" = "b22c25201e8d47860388cee0941a3fbed043cd41"
       - name: Install accepted authority and candidate consumers
         run: |
           python -m pip install -e upstream/control
