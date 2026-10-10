@@ -23,6 +23,14 @@ A reference format, validator, traceable importer and Markdown renderer for busi
 
 **Implementation status:** this README describes merged public reference work. Component acceptance, selection in the hub and execution of a qualification are separate facts. The selected revision for this component is `de6b9e071df49fc3e0c1254d39b5c94cced554f0`; the [hub lock](https://github.com/cogno-us/cognous-open-control-stack/blob/5737267d94d2b445735c95e8480a31de73a2abe8/component-lock.json) is the source of that integration choice.
 
+## Current selection, historical evidence and a bounded example
+
+**Current selected hub revision:** `b4baccd823d2a73be276c1de745b19cf7c56a0d6` ([live component lock](https://github.com/cogno-us/cognous-open-control-stack/blob/main/component-lock.json)). **Accepted repository source revision:** `87293cfcbe8dfa2368d5bf77019945ba8ef1ae71`. These are distinct: a newer owning-repository merge or synthetic test is not automatically selected in the hub. The earlier hub checkout `5737267d...` and selected SHA below refer to a **historical evidence generation**, not current selection. Preserve its original counts and limitations. See [hub release status](https://github.com/cogno-us/cognous-open-control-stack/blob/main/docs/release-status.md) and [Start here](https://github.com/cogno-us/cognous-open-control-stack/blob/main/docs/start-here.md).
+
+**Synthetic example:** A synthetic evidence pack links the refund proposal, authorization decision, runtime attempt and observed unknown outcome. Its summary is derivative evidence, not independent confirmation that a processor settled the refund.
+
+Operational deployment trust is still [HOLD under orchestrator #30](https://github.com/cogno-us/cognous-stack-orchestrator/issues/30). No signature, evidence package, successful test or source merge creates a production grant, proves external settlement, or changes selected release authority.
+
 ## Purpose and intended users
 
 Enterprise reviewers need to understand authority, review posture, reliance, attempted actions and unresolved outcomes without reading every raw event. A useful summary must remain traceable and must not convert declarations or source assertions into verified operational facts.
